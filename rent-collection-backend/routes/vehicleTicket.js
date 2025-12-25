@@ -300,6 +300,25 @@ router.post(
     }
   }
 );
+// 🔹 GET ALL VEHICLE TYPES
+router.get(
+  '/vehicle-types',
+  authenticateUser,
+  authorizeRole(['admin', 'superadmin', 'tiketing']),
+  async (req, res) => {
+    try {
+      const vehicleTypes = await VehicleType.findAll({
+        attributes: ['id', 'name', 'defaultPrice', 'description'],
+        order: [['name', 'ASC']]
+      });
+
+      res.status(200).json(vehicleTypes);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: 'Error fetching vehicle types', error: error.message });
+    }
+  }
+);
 
 // 🔹 DELETE VEHICLE TYPE
 router.delete(
