@@ -1,0 +1,13 @@
+rent-collection-backend/node_modules/
+rent-collection-backend/.env
+
+rent-management-frontend/node_modules/
+my-project/node_modules/
+Frontend/node_modules/
+Frontend/.env
+frontend_for_pricehistory/node_modules/"rent-collection-backend/config/credentials.json" 
+rent-collection-backend/config/credentials.json
+**/.env
+rent-collection-backend/backup/db_backup_2025-05-23T06-58-01-837Z.sql
+rent-collection-backend/backup/db_backup_2025-05-23T06-58-24-762Z.sql
+rent-collection-backend/backup/db_backup_2025-05-23T06-59-32-523Z.sql

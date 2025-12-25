@@ -1,0 +1,5 @@
+{
+  "DockerRun.DisableAutoGenerateConfig": true,
+  "cmake.sourceDirectory": "C:/Users/User/Desktop/shop rent collection system/my_app/linux",
+  "postman.settings.dotenv-detection-notification-visibility": false
+}

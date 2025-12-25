@@ -1,0 +1,226 @@
+{
+  "Cabbage": "Cabbage",
+  "Cauliflower": "Cauliflower",
+  "Red Cabbage": "Red Cabbage",
+  "Lotus Roots": "Lotus Roots",
+  "Kohila": "Kohila",
+  "Kiriala": "Kiriala",
+  "Beans": "Beans",
+  "Manioc": "Manioc",
+  "Leeks": "Leeks",
+  "Sweet Potato": "Sweet Potato",
+  "Carrot (Nuwara Eliya)": "Carrot (Nuwara Eliya)",
+  "Carrot (Jaffna)": "Carrot (Jaffna)",
+  "Wild Baby Potato": "Wild Baby Potato",
+  "Onion Leaves": "Onion Leaves",
+  "Beetroot (Nuwara Eliya)": "Beetroot (Nuwara Eliya)",
+  "Beetroot Cut (Mathale)": "Beetroot Cut (Mathale)",
+  "Beetroot Cut (Puttalam)": "Beetroot Cut (Puttalam)",
+  "Mukunuwenna": "Mukunuwenna",
+  "Lettuce": "Lettuce",
+  "Tomato": "Tomato",
+  "Gotukola": "Gotukola",
+  "Raddish": "Raddish",
+  "Curry Leaves": "Curry Leaves",
+  "Nolkhol": "Nolkhol",
+  "Athugowa": "Athugowa",
+  "Cooking Melon": "Cooking Melon",
+  "Spinach": "Spinach",
+  "Cucumber": "Cucumber",
+  "Water Spinach": "Water Spinach",
+  "Potatoes (Nuwara Eliya)": "Potatoes (Nuwara Eliya)",
+  "Potatoes (Jaffna)": "Potatoes (Jaffna)",
+  "Potatoes (Welimada)": "Potatoes (Welimada)",
+  "Potatoes (Imported)": "Potatoes (Imported)",
+  "Corns": "Corns",
+  "Soya Bean": "Soya Bean",
+  "Tamarind": "Tamarind",
+  "Sesame": "Sesame",
+  "Ridge Gourd": "Ridge Gourd",
+  "Lady's Fingers": "Lady's Fingers",
+  "Green Gram": "Green Gram",
+  "Snake Gourd": "Snake Gourd",
+  "Cowpea": "Cowpea",
+  "Bitter Gourd": "Bitter Gourd",
+  "Thumbakarawila": "Thumbakarawila",
+  "Finger Millet": "Finger Millet",
+  "Gram": "Gram",
+  "Pumpkin (Mathale)": "Pumpkin (Mathale)",
+  "Pumpkin (Kalukuma)": "Pumpkin (Kalukuma)",
+  "Butternut Squash": "Butternut Squash",
+  "Banana (Sini)": "Banana (Sini)",
+  "Banana (Ambul)": "Banana (Ambul)",
+  "Kolikuttu Banana": "Kolikuttu Banana",
+  "Ambun Banana": "Ambun Banana",
+  "Eggplant": "Eggplant",
+  "Brinjal": "Brinjal",
+  "Thithbatu": "Thithbatu",
+  "Thai Eggplant": "Thai Eggplant",
+  "Winged Bean": "Winged Bean",
+  "Yard Long Beans": "Yard Long Beans",
+  "Drumsticks": "Drumsticks",
+  "Ash Plantain": "Ash Plantain",
+  "Plantain Flower": "Plantain Flower",
+  "Ambarella": "Ambarella",
+  "Chayote": "Chayote",
+  "Lime": "Lime",
+  "Mango": "Mango",
+  "Capsicum": "Capsicum",
+  "Green Chili": "Green Chili",
+  "Dry Chilies": "Dry Chilies",
+  "Nai Miris": "Nai Miris",
+  "Avocado": "Avocado",
+  "Passionfruit": "Passionfruit",
+  "Soursop": "Soursop",
+  "Gooseberry": "Gooseberry",
+  "Ginger": "Ginger",
+  "Turmeric": "Turmeric",
+  "Jackfruit": "Jackfruit",
+  "Woodapple": "Woodapple",
+  "Indian Bael": "Indian Bael",
+  "King Coconut": "King Coconut",
+  "Coconut": "Coconut",
+  "Red Onion (Imported)": "Red Onion (Imported)",
+  "Red Onion (Lanka)": "Red Onion (Lanka)",
+  "Big Onion (Imported)": "Big Onion (Imported)",
+  "home": {
+    "welcomeMessage": "Welcome to the Dambulla Dedicated Economic Center",
+    "description": "From the 1998 budget proposals of the Government of Sri Lanka, as a first step towards establishing regionally specific dedicated economic centers in the country, approximately Rs. 115 million was spent. This special economic center, consisting of 144 stalls, was opened on 1999.04.01 for the benefit and advantage of wholesale vegetable traders and ultimately vegetable producers."
+  },
+  "contact": {
+    "title": "Contact Us",
+    "description": "If you have any questions or suggestions, please feel free to reach out to us. We are here to assist you.",
+    "breadcrumb": "Home > Contact Us",
+    "talkToUs": "Talk to us",
+    "subText": "Tell us your suggestions and allegations",
+    "address": "Address",
+    "email": "Email",
+    "phone": "Phone ",
+    "mapTitle": "Location Map"
+  },
+  "weather": {
+    "title": "Dambulla Weather",
+    "loading": "Loading...",
+    "error": "Failed to fetch weather data. Please try again later."
+  },
+  "footer": {
+    "mainCenters": "Main Centers",
+    "regionalCenters": "Regional Centers",
+    "thambuththegama": "Thambuththegama",
+    "dambulla": "Dambulla",
+    "nuwaraEliya": "Nuwara Eliya Dedicated Economic Center",
+    "narahenpita": "Narahenpita Dedicated Economic Center",
+    "welisara": "Welisara Dedicated Economic Center",
+    "veyangoda": "Veyangoda Dedicated Economic Center",
+    "ratmalana": "Ratmalana Dedicated Economic Center",
+    "meegoda": "Meegoda Dedicated Economic Center",
+    "kandeketiya": "Kandehandiya Dedicated Economic Center",
+    "kepptipola": "Keppetipola Economic Center",
+    "center": "Dedicated Economic Center",
+    "city": "Dambulla"
+  },
+  "ServiceSection": {
+    "sectionTitle": "Our Services",
+    "sectionDescription": "Our services at the Dambulla Special Economic Center work towards enhancing the economic growth and agricultural sustainability of farmers. Our primary objectives are to provide better prices for farmers, promote collective growth for agricultural production, and deliver high-quality products. Additionally, we fully implement new technological methods, start small industries, and establish price determination systems. Through our services, we aim to ensure the safety of farmers and provide high-quality products to consumers.",
+    "services": [
+      {
+        "icon": "💰",
+        "title": "Determining Vegetable Prices",
+        "description": "The vegetable prices at the Dambulla Special Economic Center are determined based on supply and demand principles. In some cases, farmers are unable to cover their production costs, putting them in a difficult situation. Since the price determination is solely based on supply and demand, management has limited control over the prices. Therefore, we are taking several steps to stabilize vegetable prices."
+      },
+      {
+        "icon": "🥬",
+        "title": "Ensuring High-Quality Vegetable Production",
+        "description": "We aim to achieve high yields from very small land areas and ensure that farmers maintain high-quality vegetable production, ensuring better crop yields for them."
+      },
+      {
+        "icon": "🏭",
+        "title": "Establishing Small Industries",
+        "description": "We focus on establishing small industries to prevent excess production from reaching the market, ensuring that products are processed locally and the market is balanced."
+      },
+      {
+        "icon": "🤝",
+        "title": "Preventing Price Manipulation",
+        "description": "Large-scale advertising boards in Dambulla, Kapetipola, and Meegoda will be used to prevent price manipulation and ensure that prices remain fair for all stakeholders."
+      }
+    ]
+  },
+  "vision": {
+    "title": "Vision",
+    "text": "Progress of the nation through peace of mind for the farming community."
+  },
+  "mission": {
+    "title": "Mission",
+    "1": "To directly contribute to fulfilling the vegetable and fruit needs of the Sri Lankan population by supplying essential vegetables, fruits, and grains that are clean and affordable.",
+    "2": "To protect traditional vegetable and fruit producers by offering fair and attractive prices for their produce.",
+    "3": "To ensure the continuous production of high-quality, waste-free vegetables and fruits, thereby increasing the income of farmers and uplifting their living standards.",
+    "4": "To revive the declining local agricultural industry.",
+    "5": "To enhance the income of wholesale traders through a well-planned and systematic wholesale business, supporting the development of the Dambulla region.",
+    "6": "To provide direct employment to over 5,000 people and indirect employment to more than 15,000, making Dambulla a key human resource hub for Sri Lanka."
+  },
+  "openTime": "🕔 Open - 5AM to 12MN",
+  "featureCards": {
+    "openTime": "Open Daily from 4.30 a.m. onwards",
+    "tradersValue": "10,000+",
+    "tradersLabel": "Traders & Farmers Visit Daily",
+    "vehiclesValue": "2,000+",
+    "vehiclesLabel": "Vehicles Received per Day",
+    "vegetablesValue": "2,500+",
+    "vegetablesLabel": "Metric Tons of Vegetables Exchanged Daily",
+    "marketShareValue": "60% - 70%",
+    "marketShareLabel": "Sri Lankan Vegetable Market Share"
+  },
+  "marketOperations": {
+    "title": "Market Operations",
+    "para1": " The Dambulla Dedicated Economic Center operates under a shop rental system, where selected and qualified entrepreneurs are allocated stalls on a monthly rental basis. The rental income collected from these shop owners is used to establish a management trust fund, which supports the maintenance and all development activities of the center.",
+    "para2": "Farmers and traders are directly involved in the market operations, and the stall owners act as intermediaries, facilitating transactions between both parties. For this service, stall owners charge a commission fee.",
+    "para3": " This market is known for having the lowest commission rates in Sri Lanka, which is one of the main reasons for the popularity of this system.",
+    "para4": "The Dambulla Dedicated Economic Center functions as a day-and-night market, which is why Dambulla is popularly known as a \"city that never sleeps.\" Currently, market activities take place from 5:00 AM to 12:00 midnight."
+  },
+  "dailyPrices": {
+    "title": "Daily Product Prices",
+    "searchPlaceholder": "🔍︎ Search Products",
+    "downloadPdf": "Download PDF",
+    "noDatal1": "Daily price information is being updated.",
+    "noDatal2": "The information will be available once the update is complete."
+  },
+  "ui": {
+    "title": "Daily Price Information",
+    "center": "Dedicated Economic Center, Dambulla",
+    "tel": "Tel: 0662285181",
+    "dateLabel": "Date",
+    "emailLabel": "Email",
+    "allTypes": "All Types",
+    "inquiry": "Inquiry:",
+    "manager": "Manager, Management Office, Dedicated Economic Center, Dambulla",
+    "contact": "Tel: 066-2285181 / 066-2285448 | Email: dambulladec@gmail.com",
+    "tableHeaders": {
+      "number": "Item No.",
+      "item": "Item",
+      "minPrice": "Min Price(per kg)",
+      "maxPrice": "Max Price(per kg)"
+    },
+    "noPrices": "No daily prices to print.",
+    "popupBlocked": "Popup blocked! Please allow popups for printing.",
+    "uncategorized": "Uncategorized"
+  },
+  "types": {
+  "fruit": "Fruit",
+  "vegetable": "Vegetable",
+  "rice": "Rice",
+  "potatoes": "Potatoes",
+  "Leaf Vegetable": "Leaf Vegetable",
+  "Grain": "Grain",
+  "Uncategorized": "Uncategorized"
+},
+
+  "priceInsights": {
+    "title": "Market Price Overview",
+    "range": "prices ranged between",
+    "latest": "Latest data recorded on",
+    "trends": "Use this chart to explore seasonal fluctuations, upward/downward trends, or price spikes.",
+    "zoom": "Zoom and scroll to investigate specific time periods for better insights."
+  }
+
+
+}
