@@ -23,13 +23,6 @@ const VehicleType = sequelize.define('VehicleType', {
 }, {
   tableName: 'vehicle_types',
   timestamps: false,
-  indexes: [
-    {
-      name: 'idx_vehicleType_name',
-      unique: true,
-      fields: ['name']
-    }
-  ]
 });
 
 module.exports = VehicleType;
