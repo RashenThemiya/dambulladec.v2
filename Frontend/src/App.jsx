@@ -1,9 +1,10 @@
 import 'font-awesome/css/font-awesome.min.css';
 import { Route, BrowserRouter as Router, Routes } from "react-router-dom";
-import { AuthProvider } from "./context/AuthContext";
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import { AuthProvider } from "./context/AuthContext";
 
+import PrivateRoute from './components/PrivateRoute';
 import AdminDashboard from "./pages/AdminDashboard";
 import Contact from './pages/Contact';
 import SystemSetting from './pages/CorrectionManagement/SystemSetting';
@@ -30,6 +31,7 @@ import AddPublication from './pages/Publications/AddPublication';
 import Publication from './pages/Publications/PublicationManagement';
 import ViewPublications from './pages/Publications/ViewPublications';
 import Report from './pages/Report/Report';
+import SanitationDashboard from './pages/Sanitation/SanitationDashboard';
 import Sanitation from './pages/Sanitation/SanitationTickets';
 import AdminPanel from './pages/SettingPage/AdminPanel';
 import Setting from './pages/SettingPage/Setting';
@@ -45,8 +47,7 @@ import EditTenant from './pages/TenantManagement/EditTenant';
 import TenantManagement from './pages/TenantManagement/TenantManagement';
 import ViewTenants from './pages/TenantManagement/ViewTenants';
 import VehicleTicket from './pages/VehicleTickets/VehicleTickets';
-import PrivateRoute from './components/PrivateRoute'
-import SanitationDashboard from './pages/Sanitation/SanitationDashboard';
+import VehicleTiketDahboard from './pages/VehicleTickets/VehicleTiketDahboard';
 function App() {
   return (
     <AuthProvider>
@@ -112,6 +113,7 @@ function App() {
 
             <Route path="/system-setting" element={<PrivateRoute><SystemSetting /></PrivateRoute>} />
             <Route path="/SanitationDashboard" element={<PrivateRoute><SanitationDashboard /></PrivateRoute>} />
+            <Route path="/VehicleTiketDahboard" element={<PrivateRoute><VehicleTiketDahboard /></PrivateRoute>} />
           </Routes>
           <ToastContainer />
         </div>

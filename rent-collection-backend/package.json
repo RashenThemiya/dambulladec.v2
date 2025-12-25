@@ -27,7 +27,8 @@
     "mysql2": "^3.13.0",
     "node-cron": "^3.0.3",
     "nodemailer": "^7.0.3",
-    "sequelize": "^6.37.6"
+    "sequelize": "^6.37.6",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "jest": "^29.7.0",

@@ -13,6 +13,7 @@ const Product = require('./Product'); // Assuming you have a Product model
 const Price = require('./Price'); // Assuming you have a Price model
 const VehicleType = require('./VehicleType');
 const VehicleTicket = require('./VehicleTicket');
+const GateCounter = require('./GateCounter');
 
 
 Product.hasMany(Price, { foreignKey: "product_id", onDelete: "CASCADE" });
@@ -83,4 +84,4 @@ sequelize.sync({ alter: false })
     .catch((err) => console.error("❌ Error syncing database:", err));
 
 // ✅ Export Models
-module.exports = { sequelize, Shop, ShopBalance, Fine, Invoice, OperationFee, Rent, Tenant, Vat, Payment, AuditTrail, Product, Price , VehicleType, VehicleTicket };
+module.exports = { sequelize, Shop, ShopBalance, Fine, Invoice, OperationFee, Rent, Tenant, Vat, Payment, AuditTrail, Product, Price , VehicleType, VehicleTicket , GateCounter};
