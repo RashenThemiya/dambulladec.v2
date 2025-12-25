@@ -390,4 +390,48 @@ router.get(
     }
   }
 );
+
+// 🔹 EDIT VEHICLE TYPE
+router.patch(
+  '/vehicle-type/:id',
+  authenticateUser,
+  authorizeRole(['admin', 'superadmin']),
+  async (req, res) => {
+    const { id } = req.params;
+    const { name, defaultPrice, description } = req.body;
+
+    try {
+      // 1️⃣ Find the vehicle type
+      const vehicleType = await VehicleType.findByPk(id);
+      if (!vehicleType) {
+        return res.status(404).json({ message: 'Vehicle type not found.' });
+      }
+
+      // 2️⃣ Check if new name already exists (optional)
+      if (name && name !== vehicleType.name) {
+        const existing = await VehicleType.findOne({ where: { name } });
+        if (existing) {
+          return res.status(400).json({ message: 'Vehicle type name already exists.' });
+        }
+      }
+
+      // 3️⃣ Update fields
+      if (name) vehicleType.name = name;
+      if (defaultPrice) vehicleType.defaultPrice = defaultPrice;
+      if (description !== undefined) vehicleType.description = description;
+
+      await vehicleType.save();
+
+      res.status(200).json({
+        message: 'Vehicle type updated successfully',
+        vehicleType
+      });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: 'Error updating vehicle type', error: error.message });
+    }
+  }
+);
+
+
 module.exports = router;
