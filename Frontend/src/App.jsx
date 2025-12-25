@@ -47,7 +47,7 @@ import EditTenant from './pages/TenantManagement/EditTenant';
 import TenantManagement from './pages/TenantManagement/TenantManagement';
 import ViewTenants from './pages/TenantManagement/ViewTenants';
 import VehicleTicket from './pages/VehicleTickets/VehicleTickets';
-import VehicleTiketDahboard from './pages/VehicleTickets/VehicleTiketDahboard';
+import VehicleDashboard from './pages/VehicleTickets/VehicleTicketDashboard';
 function App() {
   return (
     <AuthProvider>
@@ -113,7 +113,7 @@ function App() {
 
             <Route path="/system-setting" element={<PrivateRoute><SystemSetting /></PrivateRoute>} />
             <Route path="/SanitationDashboard" element={<PrivateRoute><SanitationDashboard /></PrivateRoute>} />
-            <Route path="/VehicleTiketDahboard" element={<PrivateRoute><VehicleTiketDahboard /></PrivateRoute>} />
+            <Route path="/VehicleTicketDashboard" element={<PrivateRoute><VehicleDashboard /></PrivateRoute>} />
           </Routes>
           <ToastContainer />
         </div>
