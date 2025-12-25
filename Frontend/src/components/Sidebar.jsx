@@ -29,7 +29,7 @@ const menuItems = [
     { path: "/reports", icon: <FaChartBar />, label: "Reports" },
     { path: "/product-management", icon: <FaBox />, label: "Product" },
     { path: "/daily-price", icon: <FaTag />, label: "Daily Price" },
-    { path: "/vehicle-ticketing", icon: <FaTruckPickup />, label: "Vehicle Ticketing" },
+    { path: "/VehicleTicketDashboard", icon: <FaTruckPickup />, label: "Vehicle Ticketing" },
     { path: "/SanitationDashboard", icon: <FaNewspaper />, label: "Sanitation Dashboard" },
     { path: "/settings", icon: <FaCog />, label: "Settings" },
     { path: "/publication", icon: <FaNewspaper />, label: "Publication" },
