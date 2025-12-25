@@ -79,9 +79,15 @@ VehicleType.hasMany(VehicleTicket, { foreignKey: 'vehicleTypeId', onDelete: 'RES
 VehicleTicket.belongsTo(VehicleType, { foreignKey: 'vehicleTypeId' });
 
 // ✅ Sync the database
-sequelize.sync({ alter: false }) 
-    .then(() => console.log("✅ Database & tables synced successfully!"))
-    .catch((err) => console.error("❌ Error syncing database:", err));
+(async () => {
+  try {
+    await sequelize.authenticate();
+    console.log("✅ Database connected successfully");
+  } catch (error) {
+    console.error("❌ Database connection failed:", error);
+    process.exit(1);
+  }
+})();
 
 // ✅ Export Models
 module.exports = { sequelize, Shop, ShopBalance, Fine, Invoice, OperationFee, Rent, Tenant, Vat, Payment, AuditTrail, Product, Price , VehicleType, VehicleTicket , GateCounter};
