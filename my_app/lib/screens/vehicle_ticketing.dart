@@ -197,8 +197,8 @@ final TextEditingController _vehicleNumberController =
     final now = DateTime.now();
     final date = DateFormat('yyyy-MM-dd').format(now);
     final time = DateFormat('HH:mm').format(now);
-    final customId = ticket['ticket']?['customId'] ?? ticket['ticketId'] ?? '';
-    final byWhom = ticket['ticket']?['byWhom'] ?? '';
+final customId = ticket['customId'] ?? ticketId ?? '';
+final byWhom = ticket['byWhom'] ?? '';
 
 
     if (_hasPosPrinter) {
