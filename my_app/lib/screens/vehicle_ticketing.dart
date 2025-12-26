@@ -197,6 +197,9 @@ final TextEditingController _vehicleNumberController =
     final now = DateTime.now();
     final date = DateFormat('yyyy-MM-dd').format(now);
     final time = DateFormat('HH:mm').format(now);
+    final customId = ticket['ticket']?['customId'] ?? ticket['ticketId'] ?? '';
+    final byWhom = ticket['ticket']?['byWhom'] ?? '';
+
 
     if (_hasPosPrinter) {
       final profile = await CapabilityProfile.load();
@@ -206,12 +209,14 @@ final TextEditingController _vehicleNumberController =
       printer.text(centerText("Economic Center", 32) + '\n');
       printer.text(centerText("Tel- 066 2285181", 32) + '\n');
       printer.text(centerText("Web - dambulladec.com", 32) + '\n');
+      printer.text("ID       : $customId");
       printer.text("Vehicle No : ${_vehicleNumber.isEmpty ? 'not include' : _vehicleNumber}");
       printer.text("Gate       : $_selectedGate");
       printer.text("Date       : $date");
       printer.text("Time       : $time");
       printer.text("Price       : $_ticketPrice");
-      printer.text("============================\n\n\n");
+      printer.text("Issued By  : $byWhom");
+      printer.text("============================\n\n");
       printer.cut();
       printer.disconnect();
     } else if (_selectedDevice != null) {
@@ -221,12 +226,14 @@ final TextEditingController _vehicleNumberController =
       bluetooth.write(centerText("Economic Center", 32) + '\n');
       bluetooth.write(centerText("Tel- 066 2285181", 32) + '\n');
       bluetooth.write(centerText("Web - dambulladec.com", 32) + '\n');
+      bluetooth.write("ID       : $customId\n");
       bluetooth.write("Vehicle No : ${_vehicleNumber.isEmpty ? 'notinclude' : _vehicleNumber}\n");
       bluetooth.write("Gate       : $_selectedGate\n");
       bluetooth.write("Date       : $date\n");
       bluetooth.write("Time       : $time\n");
       bluetooth.write("Price      : Rs. $_ticketPrice\n");
-      bluetooth.write("============================\n\n\n");
+      bluetooth.write("Issued By  : $byWhom\n");
+      bluetooth.write("============================\n\n");
 
     }
     setState(() => _isPrinting = false);
