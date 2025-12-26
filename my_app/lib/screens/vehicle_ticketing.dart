@@ -3,7 +3,6 @@ import 'package:blue_thermal_printer/blue_thermal_printer.dart';
 import 'package:esc_pos_utils/esc_pos_utils.dart';
 import 'package:esc_pos_printer/esc_pos_printer.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -18,24 +17,37 @@ class _VehicleTicketingPageState extends State<VehicleTicketingPage> {
   double _ticketPrice = 0.0;
   String _vehicleNumber = '';
   String? _selectedProvince;
+bool get _isPrinterReady {
+  if (_hasPosPrinter) return true;
+  if (_selectedDevice != null) return true;
+  return false;
+}
 
   bool _isLoading = false;
   bool _isPrinting = false;
   String? _responseMessage;
 
-  // Bluetooth
+  // ================= GATE FEATURE =================
+  final List<String> _gates = ['GATE1', 'GATE2', 'GATE3', 'GATE4', 'GATE5'];
+  String? _selectedGate;
+
+  // ================= PRINTERS =================
   final BlueThermalPrinter bluetooth = BlueThermalPrinter.instance;
   List<BluetoothDevice> _devices = [];
   BluetoothDevice? _selectedDevice;
-  bool _testPrinted = false;
-
-  // ESC/POS for USB/Built-in POS
   bool _hasPosPrinter = false;
 
   List<Map<String, dynamic>> _vehicleTypes = [];
   final List<String> _provinces = [
-    "Central", "Eastern", "Northern", "North Central",
-    "North Western", "Sabaragamuwa", "Southern", "Uva", "Western"
+    "Central",
+    "Eastern",
+    "Northern",
+    "North Central",
+    "North Western",
+    "Sabaragamuwa",
+    "Southern",
+    "Uva",
+    "Western"
   ];
 
   @override
@@ -43,8 +55,23 @@ class _VehicleTicketingPageState extends State<VehicleTicketingPage> {
     super.initState();
     _fetchVehicleTypes();
     _initPrinters();
+    _loadDefaultGate();
   }
 
+  // ================= LOAD / SAVE DEFAULT GATE =================
+  Future<void> _loadDefaultGate() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _selectedGate = prefs.getString('default_gate');
+    });
+  }
+
+  Future<void> _saveDefaultGate(String gate) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('default_gate', gate);
+  }
+
+  // ================= FETCH VEHICLE TYPES =================
   Future<void> _fetchVehicleTypes() async {
     setState(() => _isLoading = true);
     final prefs = await SharedPreferences.getInstance();
@@ -59,7 +86,8 @@ class _VehicleTicketingPageState extends State<VehicleTicketingPage> {
       if (response.statusCode == 200) {
         setState(() => _vehicleTypes = List<Map<String, dynamic>>.from(data));
       } else {
-        setState(() => _responseMessage = data['message'] ?? 'Failed to fetch vehicle types.');
+        setState(() =>
+            _responseMessage = data['message'] ?? 'Failed to fetch vehicle types.');
       }
     } catch (e) {
       setState(() => _responseMessage = 'Error fetching vehicle types: $e');
@@ -68,86 +96,43 @@ class _VehicleTicketingPageState extends State<VehicleTicketingPage> {
     }
   }
 
+  // ================= INIT PRINTERS =================
   Future<void> _initPrinters() async {
-    // 1. Check built-in POS/USB printer (ESC/POS)
     try {
       final profile = await CapabilityProfile.load();
       final printer = NetworkPrinter(PaperSize.mm58, profile);
-
-      // Test connection to 127.0.0.1 (some POS devices expose a local port)
       final res = await printer.connect('127.0.0.1', port: 9100);
       if (res == PosPrintResult.success) {
         _hasPosPrinter = true;
-        setState(() => _responseMessage = '✅ Built-in POS printer detected');
         printer.disconnect();
-        return; // POS printer found, no need to init Bluetooth
       }
-    } catch (e) {
-      print("No POS printer detected: $e");
-    }
+    } catch (_) {}
 
-    // 2. Init Bluetooth as fallback
     try {
       List<BluetoothDevice> devices = await bluetooth.getBondedDevices();
-      BluetoothDevice? pt210Device;
-
-      for (var device in devices) {
-        if ((device.name?.toLowerCase().contains('pt') ?? false) ||
-            (device.name?.toLowerCase().contains('printer') ?? false)) {
-          pt210Device = device;
-          break;
-        }
-      }
-
-      setState(() {
-        _devices = devices;
-        _selectedDevice = pt210Device;
-      });
-
-      if (pt210Device != null) {
-        bool? connected = await bluetooth.isConnected;
-        if (connected != true) await bluetooth.connect(pt210Device);
-        if (!_testPrinted) {
-          await _printTestLabel();
-          _testPrinted = true;
-        }
-        setState(() => _responseMessage = '✅ Connected to PT210 Bluetooth printer');
-      } else {
-        setState(() => _responseMessage = '❌ PT210 Bluetooth printer not found. Pair it first.');
-      }
+      setState(() => _devices = devices);
     } catch (e) {
       setState(() => _responseMessage = 'Bluetooth error: $e');
     }
   }
 
-  Future<void> _printTestLabel() async {
-    if (_hasPosPrinter) {
-      try {
-        final profile = await CapabilityProfile.load();
-        final printer = NetworkPrinter(PaperSize.mm58, profile);
-        await printer.connect('127.0.0.1', port: 9100);
-        printer.text('===== TEST PRINT =====');
-        printer.cut();
-        printer.disconnect();
-      } catch (e) {
-        print("POS test print failed: $e");
-      }
-    } else if (_selectedDevice != null) {
-      bluetooth.write("\n\n====== TEST PRINT ======\nPrinter connected ✅\n========================\n\n\n");
-    }
-  }
-
+  // ================= ISSUE TICKET =================
   Future<void> _issueTicket() async {
+
+    if (!_isPrinterReady) {
+      setState(() => _responseMessage = 'Printer not detected.');
+      return;
+    }
+    if (_selectedGate == null) {
+      setState(() => _responseMessage = 'Please select gate.');
+      return;
+    }
     if (_selectedVehicleTypeId == null) {
       setState(() => _responseMessage = 'Please select vehicle type.');
       return;
     }
     if (_selectedProvince == null) {
       setState(() => _responseMessage = 'Please select a province.');
-      return;
-    }
-    if (!_hasPosPrinter && _selectedDevice == null) {
-      setState(() => _responseMessage = 'No printer detected.');
       return;
     }
 
@@ -158,106 +143,68 @@ class _VehicleTicketingPageState extends State<VehicleTicketingPage> {
 
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
-    final vehicleNumber = _vehicleNumber.isEmpty ? "ABC-1234" : _vehicleNumber;
 
-    final url = Uri.parse('https://api.dambulladec.com/api/vehicle-tickets/');
+    final response = await http.post(
+      Uri.parse('https://api.dambulladec.com/api/vehicle-tickets/'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'vehicleNumber': _vehicleNumber.isEmpty ? "ABC-1234" : _vehicleNumber,
+        'vehicleTypeId': _selectedVehicleTypeId,
+        'ticketPrice': _ticketPrice,
+        'fromLocation': _selectedProvince,
+        'gateNumber': _selectedGate,
+      }),
+    );
 
-    try {
-      final response = await http.post(
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-        body: jsonEncode({
-          'vehicleNumber': vehicleNumber,
-          'vehicleTypeId': _selectedVehicleTypeId,
-          'ticketPrice': _ticketPrice,
-          'fromLocation': _selectedProvince,
-          'gateNumber': 'GATE1',
-        }),
-      );
+    final data = jsonDecode(response.body);
 
-      final data = jsonDecode(response.body);
-
-      if (response.statusCode == 201) {
-        await _printTicket(data['ticket'], ticketId: data['ticketId'].toString());
-        setState(() {
-          _responseMessage = '✅ Ticket issued and printed: ID ${data['ticketId']}';
-          _vehicleNumber = '';
-          _selectedVehicleTypeId = null;
-          _ticketPrice = 0.0;
-          _selectedProvince = null;
-        });
-      } else {
-        setState(() => _responseMessage = data['message'] ?? 'Ticket issue failed.');
-      }
-    } catch (e) {
-      setState(() => _responseMessage = 'Error issuing ticket: $e');
-    } finally {
-      setState(() => _isLoading = false);
+    if (response.statusCode == 201) {
+      await _printTicket(data['ticket'], ticketId: data['ticketId'].toString());
+      setState(() {
+        _responseMessage = '✅ Ticket issued and printed';
+        _vehicleNumber = '';
+        _selectedVehicleTypeId = null;
+        _ticketPrice = 0.0;
+        _selectedProvince = null;
+      });
+    } else {
+      setState(() => _responseMessage = data['message']);
     }
+
+    setState(() => _isLoading = false);
   }
 
+  // ================= PRINT TICKET =================
   Future<void> _printTicket(Map<String, dynamic> ticket, {String? ticketId}) async {
     setState(() => _isPrinting = true);
-    try {
-      final now = DateTime.now().toUtc().add(Duration(hours: 5, minutes: 30));
-      final formattedDate = DateFormat('yyyy-MM-dd').format(now);
-      final formattedTime = DateFormat('HH:mm').format(now);
 
-      String centerText(String text, int lineWidth) {
-        int padding = ((lineWidth - text.length) / 2).floor();
-        return ' ' * padding + text;
-      }
+    final now = DateTime.now();
+    final date = DateFormat('yyyy-MM-dd').format(now);
+    final time = DateFormat('HH:mm').format(now);
 
-      if (_hasPosPrinter) {
-        // Use ESC/POS USB/Built-in printer
-        final profile = await CapabilityProfile.load();
-        final printer = NetworkPrinter(PaperSize.mm58, profile);
-        await printer.connect('127.0.0.1', port: 9100);
-        printer.text(centerText("Dambulla Dedicated", 32));
-        printer.text(centerText("Economic Center", 32));
-        printer.text(centerText("Tel- 066 2285181", 32));
-        printer.text(centerText("Web - dambulladec.com", 32));
-        printer.text(centerText("====== VEHICLE TICKET ======", 32));
-        printer.text("Ticket ID  : ${ticketId ?? ''}");
-        printer.text("Vehicle No : ${ticket['vehicleNumber'] ?? ''}");
-        printer.text("Type       : ${ticket['vehicleType'] ?? ''}");
-        printer.text("Price      : Rs. ${ticket['ticketPrice'] ?? ''}");
-        printer.text("Location   : ${ticket['fromLocation'] ?? ''}");
-        printer.text("Date       : $formattedDate");
-        printer.text("Time       : $formattedTime");
-        printer.text("Issued By  : ${ticket['byWhom'] ?? ''}");
-        printer.text("============================");
-        printer.cut();
-        printer.disconnect();
-      } else if (_selectedDevice != null) {
-        // Use Bluetooth
-        bool? connected = await bluetooth.isConnected;
-        if (connected != true) await bluetooth.connect(_selectedDevice!);
+    if (_hasPosPrinter) {
+      final profile = await CapabilityProfile.load();
+      final printer = NetworkPrinter(PaperSize.mm58, profile);
+      await printer.connect('127.0.0.1', port: 9100);
+      printer.text("Vehicle No : ${_vehicleNumber.isEmpty ? 'not include' : _vehicleNumber}");
+      printer.text("Gate       : $_selectedGate");
+      printer.text("Date       : $date");
+      printer.text("Time       : $time");
+      printer.cut();
+      printer.disconnect();
+    } else if (_selectedDevice != null) {
+      bool? connected = await bluetooth.isConnected;
+      if (connected != true) await bluetooth.connect(_selectedDevice!);
+      bluetooth.write("Vehicle No : ${_vehicleNumber.isEmpty ? 'ABC-1234' : _vehicleNumber}\n");
+      bluetooth.write("Gate       : $_selectedGate\n");
+      bluetooth.write("Date       : $date\n");
+      bluetooth.write("Time       : $time\n");
 
-        bluetooth.write("\n\n");
-        bluetooth.write(centerText("Dambulla Dedicated", 32) + '\n');
-        bluetooth.write(centerText("Economic Center", 32) + '\n');
-        bluetooth.write(centerText("Tel- 066 2285181", 32) + '\n');
-        bluetooth.write(centerText("Web - dambulladec.com", 32) + '\n\n');
-        bluetooth.write(centerText("====== VEHICLE TICKET ======", 32) + '\n');
-        bluetooth.write("Ticket ID  : ${ticketId ?? ''}\n");
-        bluetooth.write("Vehicle No : ${ticket['vehicleNumber'] ?? ''}\n");
-        bluetooth.write("Type       : ${ticket['vehicleType'] ?? ''}\n");
-        bluetooth.write("Price      : Rs. ${ticket['ticketPrice'] ?? ''}\n");
-        bluetooth.write("Location   : ${ticket['fromLocation'] ?? ''}\n");
-        bluetooth.write("Date       : $formattedDate\n");
-        bluetooth.write("Time       : $formattedTime\n");
-        bluetooth.write("Issued By  : ${ticket['byWhom'] ?? ''}\n");
-        bluetooth.write("============================\n\n\n");
-      }
-    } catch (e) {
-      setState(() => _responseMessage = '❌ Printing failed: $e');
-    } finally {
-      setState(() => _isPrinting = false);
     }
+    setState(() => _isPrinting = false);
   }
 
   @override
@@ -270,21 +217,37 @@ class _VehicleTicketingPageState extends State<VehicleTicketingPage> {
             ? Center(child: CircularProgressIndicator())
             : ListView(
                 children: [
+
+                  
+                  // ================= GATE SELECTION =================
+                  Text("Select Gate", style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<String>(
+                    value: _selectedGate,
+                    hint: Text("Select Gate"),
+                    items: _gates
+                        .map((g) => DropdownMenuItem(value: g, child: Text(g)))
+                        .toList(),
+                    onChanged: (g) {
+                      setState(() => _selectedGate = g);
+                      _saveDefaultGate(g!);
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  // ================= VEHICLE NUMBER INPUT =================
+                  Text("Vehicle Number", style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
                   TextField(
-                    autofocus: true,
-                    onChanged: (val) => _vehicleNumber = val.toUpperCase(),
                     decoration: InputDecoration(
-                      labelText: 'Vehicle Number (optional)',
-                      hintText: 'e.g., ABC-1234',
+                      border: OutlineInputBorder(),
+                      hintText: "Enter Vehicle Number",
                     ),
-                    keyboardType: TextInputType.text,
-                    textCapitalization: TextCapitalization.characters,
-                    inputFormatters: [
-                      FilteringTextInputFormatter.allow(RegExp(r'[A-Z0-9-]')),
-                    ],
+                    onChanged: (v) => _vehicleNumber = v,
                   ),
                   const SizedBox(height: 16),
 
+
+                  // ================= VEHICLE TYPE =================
                   Text("Select Vehicle Type", style: TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
                   _vehicleTypes.isEmpty
@@ -307,9 +270,9 @@ class _VehicleTicketingPageState extends State<VehicleTicketingPage> {
                             );
                           }).toList(),
                         ),
-
                   const SizedBox(height: 16),
 
+                  // ================= PROVINCE =================
                   Text("Select Province", style: TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
                   Wrap(
@@ -324,9 +287,9 @@ class _VehicleTicketingPageState extends State<VehicleTicketingPage> {
                       );
                     }).toList(),
                   ),
-
                   const SizedBox(height: 16),
 
+                  // ================= PRINTER SELECTION =================
                   if (!_hasPosPrinter)
                     DropdownButton<BluetoothDevice>(
                       value: _selectedDevice,
@@ -339,15 +302,24 @@ class _VehicleTicketingPageState extends State<VehicleTicketingPage> {
                           .toList(),
                       onChanged: (d) => setState(() => _selectedDevice = d),
                     ),
-
                   const SizedBox(height: 24),
+
+                  // ================= ISSUE TICKET BUTTON =================
                   _isLoading
                       ? Center(child: CircularProgressIndicator())
-                      : ElevatedButton(
-                          onPressed: _isPrinting ? null : _issueTicket,
-                          child: Text('Issue Ticket (Rs. ${_ticketPrice.toStringAsFixed(2)})'),
-                        ),
+                      :ElevatedButton(
+                                    onPressed: (!_isPrinterReady || _isLoading || _isPrinting)
+                                        ? null
+                                        : _issueTicket,
+                                    child: Text(
+                                      _isPrinterReady
+                                          ? 'Issue Ticket (Rs. ${_ticketPrice.toStringAsFixed(2)})'
+                                          : 'Waiting for printer...',
+                                    ),
+                                  ),
 
+
+                  // ================= RESPONSE MESSAGE =================
                   if (_responseMessage != null) ...[
                     const SizedBox(height: 16),
                     Text(
