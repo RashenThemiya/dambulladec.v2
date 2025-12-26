@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/services.dart'; // <-- needed for input formatters
+
 
 class VehicleTicketingPage extends StatefulWidget {
   @override
@@ -22,6 +24,15 @@ bool get _isPrinterReady {
   if (_selectedDevice != null) return true;
   return false;
 }
+
+String centerText(String text, int lineWidth) {
+  if (text.length >= lineWidth) return text;
+
+  int spaces = ((lineWidth - text.length) / 2).floor();
+  return ' ' * spaces + text;
+}
+final TextEditingController _vehicleNumberController =
+    TextEditingController();
 
   bool _isLoading = false;
   bool _isPrinting = false;
@@ -169,7 +180,9 @@ bool get _isPrinterReady {
         _selectedVehicleTypeId = null;
         _ticketPrice = 0.0;
         _selectedProvince = null;
+        _vehicleNumberController.clear();
       });
+      
     } else {
       setState(() => _responseMessage = data['message']);
     }
@@ -189,19 +202,31 @@ bool get _isPrinterReady {
       final profile = await CapabilityProfile.load();
       final printer = NetworkPrinter(PaperSize.mm58, profile);
       await printer.connect('127.0.0.1', port: 9100);
+      printer.text(centerText("Dambulla Dedicated", 32) + '\n');
+      printer.text(centerText("Economic Center", 32) + '\n');
+      printer.text(centerText("Tel- 066 2285181", 32) + '\n');
+      printer.text(centerText("Web - dambulladec.com", 32) + '\n');
       printer.text("Vehicle No : ${_vehicleNumber.isEmpty ? 'not include' : _vehicleNumber}");
       printer.text("Gate       : $_selectedGate");
       printer.text("Date       : $date");
       printer.text("Time       : $time");
+      printer.text("Price       : $_ticketPrice");
+      printer.text("============================\n\n\n");
       printer.cut();
       printer.disconnect();
     } else if (_selectedDevice != null) {
       bool? connected = await bluetooth.isConnected;
       if (connected != true) await bluetooth.connect(_selectedDevice!);
-      bluetooth.write("Vehicle No : ${_vehicleNumber.isEmpty ? 'ABC-1234' : _vehicleNumber}\n");
+      bluetooth.write(centerText("Dambulla Dedicated", 32) + '\n');
+      bluetooth.write(centerText("Economic Center", 32) + '\n');
+      bluetooth.write(centerText("Tel- 066 2285181", 32) + '\n');
+      bluetooth.write(centerText("Web - dambulladec.com", 32) + '\n');
+      bluetooth.write("Vehicle No : ${_vehicleNumber.isEmpty ? 'notinclude' : _vehicleNumber}\n");
       bluetooth.write("Gate       : $_selectedGate\n");
       bluetooth.write("Date       : $date\n");
       bluetooth.write("Time       : $time\n");
+      bluetooth.write("Price      : Rs. $_ticketPrice\n");
+      bluetooth.write("============================\n\n\n");
 
     }
     setState(() => _isPrinting = false);
@@ -238,12 +263,19 @@ bool get _isPrinterReady {
                   Text("Vehicle Number", style: TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
                   TextField(
-                    decoration: InputDecoration(
-                      border: OutlineInputBorder(),
-                      hintText: "Enter Vehicle Number",
+                      controller: _vehicleNumberController,
+                      keyboardType: TextInputType.text, // standard text keyboard
+                      textCapitalization: TextCapitalization.characters, // auto-uppercase
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(RegExp(r'[A-Z0-9 \-]')), // only A-Z, 0-9, space, -
+                        LengthLimitingTextInputFormatter(10), // optional max length
+                      ],
+                      decoration: InputDecoration(
+                        border: OutlineInputBorder(),
+                        hintText: "Enter Vehicle Number",
+                      ),
+                      onChanged: (v) => _vehicleNumber = v.toUpperCase(),
                     ),
-                    onChanged: (v) => _vehicleNumber = v,
-                  ),
                   const SizedBox(height: 16),
 
 
@@ -305,18 +337,24 @@ bool get _isPrinterReady {
                   const SizedBox(height: 24),
 
                   // ================= ISSUE TICKET BUTTON =================
-                  _isLoading
-                      ? Center(child: CircularProgressIndicator())
-                      :ElevatedButton(
-                                    onPressed: (!_isPrinterReady || _isLoading || _isPrinting)
-                                        ? null
-                                        : _issueTicket,
-                                    child: Text(
-                                      _isPrinterReady
-                                          ? 'Issue Ticket (Rs. ${_ticketPrice.toStringAsFixed(2)})'
-                                          : 'Waiting for printer...',
-                                    ),
-                                  ),
+                            _isLoading
+                        ? Center(child: CircularProgressIndicator())
+                        : ElevatedButton(
+                            onPressed: (!_isPrinterReady || _isLoading || _isPrinting)
+                                ? null
+                                : _issueTicket,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.yellow[300], // ✅ light yellow
+                              foregroundColor: Colors.black,       // text color
+                              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
+                            ),
+                            child: Text(
+                              _isPrinterReady
+                                  ? 'Issue Ticket (Rs. ${_ticketPrice.toStringAsFixed(2)})'
+                                  : 'Waiting for printer...',
+                              style: const TextStyle(fontSize: 16),
+                            ),
+                          ),
 
 
                   // ================= RESPONSE MESSAGE =================
