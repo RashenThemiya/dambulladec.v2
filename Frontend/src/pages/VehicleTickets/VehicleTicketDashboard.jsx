@@ -1,14 +1,16 @@
+// VehicleDashboard.jsx - Updated with clickable cards
 import { saveAs } from "file-saver";
 import moment from "moment";
 import { useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import DashboardCard from "../../components/DashboardCard";
 import Sidebar from "../../components/Sidebar";
 import api from "../../utils/axiosInstance";
-import { Link } from "react-router-dom";
 
 const VehicleDashboard = () => {
   const [dailyIncome, setDailyIncome] = useState([]);
   const [monthlyIncome, setMonthlyIncome] = useState([]);
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchGateWiseDaily();
@@ -36,7 +38,19 @@ const VehicleDashboard = () => {
       const res = await api.get(
         `/api/vehicle-tickets/monthly-income?startDate=${startOfMonth}&endDate=${endOfMonth}`
       );
-      setMonthlyIncome(res.data || []);
+      
+      // Group by gate and sum
+      const grouped = res.data.reduce((acc, item) => {
+        const gate = item.gateNumber;
+        if (!acc[gate]) {
+          acc[gate] = { gateNumber: gate, totalIncome: 0, ticketCount: 0 };
+        }
+        acc[gate].totalIncome += parseFloat(item.totalIncome || 0);
+        acc[gate].ticketCount += parseInt(item.ticketCount || 0);
+        return acc;
+      }, {});
+      
+      setMonthlyIncome(Object.values(grouped));
     } catch (err) {
       console.error("Error fetching monthly income:", err);
     }
@@ -46,7 +60,7 @@ const VehicleDashboard = () => {
   const downloadExcel = async () => {
     try {
       const res = await api.get("/api/vehicle-tickets/monthly-income-excel", {
-        responseType: "blob" // important for file download
+        responseType: "blob"
       });
 
       const blob = new Blob([res.data], {
@@ -66,37 +80,49 @@ const VehicleDashboard = () => {
           <h3 className="text-3xl font-bold mb-8 text-gray-800 text-center">
             Vehicle Gate-Wise Dashboard
           </h3>
-<div>
-  <Link
-  to="/vehicle-ticketing"
-  className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 mb-6 inline-block"
->
-  View All Vehicle Tickets
-</Link>
-</div>
+
+          <div className="mb-6">
+            <Link
+              to="/vehicle-ticketing"
+              className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 inline-block"
+            >
+              View All Vehicle Tickets
+            </Link>
+          </div>
+
           <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3">
-            {/* Daily Cards */}
+            {/* Daily Cards - Click to view gate daily details */}
             {dailyIncome.map((gate, idx) => (
-              <DashboardCard
-                key={idx}
-                title={`Gate ${gate.gateNumber} Today`}
-                revenue={parseFloat(gate.totalIncome || 0)}
-                tickets={gate.ticketCount}
-                icon="dollar"
-                bgGradient="bg-gradient-to-r from-green-700 to-green-900"
-              />
+              <div
+                key={`daily-${idx}`}
+                onClick={() => navigate(`/gate/${gate.gateNumber}/daily`)}
+                className="cursor-pointer transform transition hover:scale-105"
+              >
+                <DashboardCard
+                  title={`Gate ${gate.gateNumber} Today`}
+                  revenue={parseFloat(gate.totalIncome || 0)}
+                  tickets={gate.ticketCount}
+                  icon="dollar"
+                  bgGradient="bg-gradient-to-r from-green-700 to-green-900"
+                />
+              </div>
             ))}
 
-            {/* Monthly Cards */}
+            {/* Monthly Cards - Click to view gate monthly details */}
             {monthlyIncome.map((gate, idx) => (
-              <DashboardCard
-                key={idx}
-                title={`Gate ${gate.gateNumber} Month`}
-                revenue={parseFloat(gate.totalIncome || 0)}
-                tickets={gate.ticketCount}
-                icon="calendar"
-                bgGradient="bg-gradient-to-r from-blue-700 to-blue-900"
-              />
+              <div
+                key={`monthly-${idx}`}
+                onClick={() => navigate(`/gate/${gate.gateNumber}/monthly`)}
+                className="cursor-pointer transform transition hover:scale-105"
+              >
+                <DashboardCard
+                  title={`Gate ${gate.gateNumber} Month`}
+                  revenue={parseFloat(gate.totalIncome || 0)}
+                  tickets={gate.ticketCount}
+                  icon="calendar"
+                  bgGradient="bg-gradient-to-r from-blue-700 to-blue-900"
+                />
+              </div>
             ))}
           </div>
 
