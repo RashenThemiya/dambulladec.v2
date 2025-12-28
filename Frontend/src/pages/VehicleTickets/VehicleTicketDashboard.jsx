@@ -23,8 +23,8 @@ const VehicleDashboard = () => {
   const fetchGateWiseDaily = async () => {
     try {
       setLoading(true);
-      // const today = moment().format("YYYY-MM-DD");
-      const today="2025-12-26"
+      const today = moment().format("YYYY-MM-DD");
+      //const today="2025-12-26"
       const res = await api.get(
         `/api/vehicle-tickets/daily-income?startDate=${today}&endDate=${today}`
       );
