@@ -1,5 +1,5 @@
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { FaArrowLeft, FaTrash } from "react-icons/fa";
 import ExcelJS from "exceljs";
@@ -91,44 +91,73 @@ const GateMonthlyTickets = () => {
   const [totalIncome, setTotalIncome] = useState(0);
   const [ticketCount, setTicketCount] = useState(0);
 
-  useEffect(() => {
-    fetchTickets();
-  }, [gateNumber, selectedMonth, searchByWhom]);
+  const [currentPage, setCurrentPage] = useState(1);
+const [totalPages, setTotalPages] = useState(1);
+const [totalRecords, setTotalRecords] = useState(0);
+const itemsPerPage = 10;
+const isInitialMount = useRef(true);
 
-  useEffect(() => {
-    filterTickets();
-  }, [searchVehicleNumber, tickets]);
+// Reset page when filters change
+useEffect(() => {
+  setCurrentPage(1);
+}, [gateNumber, selectedMonth, searchByWhom]);
 
-  const fetchTickets = async () => {
-    setLoading(true);
-    try {
-      const startOfMonth = moment(selectedMonth).startOf("month").format("YYYY-MM-DD");
-      const endOfMonth = moment(selectedMonth).endOf("month").format("YYYY-MM-DD");
+// Fetch on page change (skip only first render)
+useEffect(() => {
+  if (isInitialMount.current) {
+    isInitialMount.current = false;
+  } else {
+    fetchTickets(); // Runs for ALL page changes including page 1
+  }
+}, [currentPage]);
 
-      const queryParams = new URLSearchParams();
-      queryParams.append("startDate", startOfMonth);
-      queryParams.append("endDate", endOfMonth);
-      queryParams.append("gateNumber", gateNumber);
-      if (searchByWhom) queryParams.append("byWhom", searchByWhom);
+// Initial fetch on mount
+useEffect(() => {
+  fetchTickets();
+}, []);
 
-      const res = await api.get(`/api/vehicle-tickets/by-date?${queryParams}`);
-      const ticketData = res.data.tickets || [];
-      setTickets(ticketData);
-      setFilteredTickets(ticketData);
+// Client-side filtering
+useEffect(() => {
+  filterTickets();
+}, [searchVehicleNumber, tickets]);
 
-      const total = ticketData.reduce(
-        (sum, t) => sum + parseFloat(t.ticketPrice || 0),
-        0
-      );
-      setTotalIncome(total);
-      setTicketCount(ticketData.length);
-    } catch (err) {
-      setError("Failed to fetch tickets.");
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
+
+ const fetchTickets = async () => {
+  setLoading(true);
+  try {
+    const startOfMonth = moment(selectedMonth).startOf("month").format("YYYY-MM-DD");
+    const endOfMonth = moment(selectedMonth).endOf("month").format("YYYY-MM-DD");
+
+    const queryParams = new URLSearchParams();
+    queryParams.append("startDate", startOfMonth);
+    queryParams.append("endDate", endOfMonth);
+    queryParams.append("gateNumber", gateNumber);
+    queryParams.append("page", currentPage);
+    queryParams.append("limit", itemsPerPage); // ✅ Override backend's default limit of 10
+    if (searchByWhom) queryParams.append("byWhom", searchByWhom);
+
+    const res = await api.get(`/api/vehicle-tickets/by-date?${queryParams}`);
+    
+    // ✅ Backend already returns: { total: 23, page: 1, tickets: [...] }
+    const ticketData = res.data.tickets || [];
+    setTickets(ticketData);
+    setFilteredTickets(ticketData);
+    setTotalRecords(res.data.total || 0);
+    setTotalPages(Math.ceil((res.data.total || 0) / itemsPerPage));
+
+    const total = ticketData.reduce(
+      (sum, t) => sum + parseFloat(t.ticketPrice || 0),
+      0
+    );
+    setTotalIncome(total);
+    setTicketCount(ticketData.length);
+  } catch (err) {
+    setError("Failed to fetch tickets.");
+    console.error(err);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const filterTickets = () => {
     const filtered = tickets.filter((ticket) =>
@@ -156,7 +185,7 @@ const GateMonthlyTickets = () => {
         <div className="max-w-6xl mx-auto bg-white shadow-md rounded-lg p-6">
           <div className="flex items-center justify-between mb-6">
             <button
-              onClick={() => navigate("/vehicle-dashboard")}
+              onClick={() => navigate("/VehicleTicketDashboard")}
               className="flex items-center gap-2 text-blue-600 hover:text-blue-800 font-semibold"
             >
               <FaArrowLeft /> Back to Dashboard
@@ -206,8 +235,8 @@ const GateMonthlyTickets = () => {
           <div>
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-xl font-semibold text-gray-700">
-                Tickets ({filteredTickets.length})
-              </h3>
+  Tickets (Showing {filteredTickets.length} of {totalRecords} total)
+</h3>
               <button
                 onClick={() =>
                   exportMonthlyTicketsExcel(
@@ -295,6 +324,67 @@ const GateMonthlyTickets = () => {
                     )}
                   </tbody>
                 </table>
+                {totalPages > 1 && (
+  <div className="mt-6 flex flex-col sm:flex-row justify-between items-center gap-4 border-t pt-4">
+    <div className="text-gray-600 text-sm">
+      Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, totalRecords)} of {totalRecords} tickets
+    </div>
+    
+    <div className="flex items-center gap-2">
+      <button
+        onClick={() => setCurrentPage(1)}
+        disabled={currentPage === 1}
+        className={`px-3 py-2 rounded-lg text-sm ${
+          currentPage === 1
+            ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+        }`}
+      >
+        First
+      </button>
+      
+      <button
+        onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+        disabled={currentPage === 1}
+        className={`px-4 py-2 rounded-lg ${
+          currentPage === 1
+            ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+            : 'bg-blue-600 text-white hover:bg-blue-700'
+        }`}
+      >
+        Previous
+      </button>
+      
+      <span className="text-gray-700 font-medium px-4">
+        Page {currentPage} of {totalPages}
+      </span>
+      
+      <button
+        onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+        disabled={currentPage === totalPages}
+        className={`px-4 py-2 rounded-lg ${
+          currentPage === totalPages
+            ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+            : 'bg-blue-600 text-white hover:bg-blue-700'
+        }`}
+      >
+        Next
+      </button>
+      
+      <button
+        onClick={() => setCurrentPage(totalPages)}
+        disabled={currentPage === totalPages}
+        className={`px-3 py-2 rounded-lg text-sm ${
+          currentPage === totalPages
+            ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+        }`}
+      >
+        Last
+      </button>
+    </div>
+  </div>
+)}
               </div>
             )}
           </div>

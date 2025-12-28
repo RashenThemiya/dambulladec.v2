@@ -149,7 +149,7 @@ const GateDailyTickets = () => {
         <div className="max-w-6xl mx-auto bg-white shadow-md rounded-lg p-6">
           <div className="flex items-center justify-between mb-6">
             <button
-              onClick={() => navigate("/vehicle-dashboard")}
+              onClick={() => navigate("/VehicleTicketDashboard")}
               className="flex items-center gap-2 text-teal-600 hover:text-teal-800 font-semibold"
             >
               <FaArrowLeft /> Back to Dashboard
