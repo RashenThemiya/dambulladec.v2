@@ -8,8 +8,10 @@ import Sidebar from "../../components/Sidebar";
 import api from "../../utils/axiosInstance";
 
 const VehicleDashboard = () => {
+
   const [dailyIncome, setDailyIncome] = useState([]);
   const [monthlyIncome, setMonthlyIncome] = useState([]);
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -20,14 +22,18 @@ const VehicleDashboard = () => {
   // Fetch today gate-wise income
   const fetchGateWiseDaily = async () => {
     try {
-      const today = moment().format("YYYY-MM-DD");
+      setLoading(true);
+      // const today = moment().format("YYYY-MM-DD");
+      const today="2025-12-26"
       const res = await api.get(
         `/api/vehicle-tickets/daily-income?startDate=${today}&endDate=${today}`
       );
       setDailyIncome(res.data || []);
     } catch (err) {
       console.error("Error fetching daily income:", err);
-    }
+    } finally {
+    setLoading(false); 
+  }
   };
 
   // Fetch current month gate-wise income
@@ -73,25 +79,37 @@ const VehicleDashboard = () => {
   };
 
   return (
-    <div className="flex flex-col md:flex-row h-screen">
-      <Sidebar />
-      <div className="flex-1 overflow-auto p-6 bg-gray-100">
-        <div className="bg-white shadow-md rounded-lg p-6 h-full">
-          <h3 className="text-3xl font-bold mb-8 text-gray-800 text-center">
-            Vehicle Gate-Wise Dashboard
-          </h3>
+  <div className="flex flex-col md:flex-row h-screen">
+    <Sidebar />
+    <div className="flex-1 overflow-auto p-6 bg-gray-100">
+      <div className="bg-white shadow-md rounded-lg p-6 min-h-screen">
+        <h3 className="text-3xl font-bold mb-8 text-gray-800 text-center">
+          Vehicle Gate-Wise Dashboard
+        </h3>
 
-          <div className="mb-6">
-            <Link
-              to="/vehicle-ticketing"
-              className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 inline-block"
-            >
-              View All Vehicle Tickets
-            </Link>
+    
+        <div className="mb-6 flex flex-wrap gap-4">
+          <Link
+            to="/vehicle-ticketing"
+            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 inline-block"
+          >
+            View All Vehicle Tickets
+          </Link>
+          <button
+            className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+            onClick={downloadExcel}
+          >
+            Download Monthly Income Excel
+          </button>
+        </div>
+
+        {loading ? (
+          <div className="flex justify-center items-center h-64">
+            <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-blue-600"></div>
           </div>
-
+        ) : (
           <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3">
-            {/* Daily Cards - Click to view gate daily details */}
+            {/* Daily Cards */}
             {dailyIncome.map((gate, idx) => (
               <div
                 key={`daily-${idx}`}
@@ -108,7 +126,7 @@ const VehicleDashboard = () => {
               </div>
             ))}
 
-            {/* Monthly Cards - Click to view gate monthly details */}
+            {/* Monthly Cards */}
             {monthlyIncome.map((gate, idx) => (
               <div
                 key={`monthly-${idx}`}
@@ -125,19 +143,11 @@ const VehicleDashboard = () => {
               </div>
             ))}
           </div>
-
-          <div className="flex justify-center mt-12">
-            <button
-              className="bg-green-600 text-white px-6 py-3 rounded hover:bg-green-700"
-              onClick={downloadExcel}
-            >
-              Download Monthly Income Excel
-            </button>
-          </div>
-        </div>
+        )}
       </div>
     </div>
-  );
+  </div>
+);
 };
 
 export default VehicleDashboard;
