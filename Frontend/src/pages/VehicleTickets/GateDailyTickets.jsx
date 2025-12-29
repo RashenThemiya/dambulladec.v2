@@ -75,7 +75,6 @@ const GateDailyTickets = () => {
   const { role } = useAuth();
 
   const [tickets, setTickets] = useState([]);
-  const [filteredTickets, setFilteredTickets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [successMsg, setSuccessMsg] = useState("");
@@ -89,11 +88,7 @@ const GateDailyTickets = () => {
 
   useEffect(() => {
     fetchTickets();
-  }, [gateNumber, searchDate, searchByWhom]);
-
-  useEffect(() => {
-    filterTickets();
-  }, [searchVehicleNumber, tickets]);
+  }, [gateNumber, searchDate, searchByWhom, searchVehicleNumber]);
 
   const fetchTickets = async () => {
     setLoading(true);
@@ -103,11 +98,11 @@ const GateDailyTickets = () => {
       queryParams.append("endDate", searchDate);
       queryParams.append("gateNumber", gateNumber);
       if (searchByWhom) queryParams.append("byWhom", searchByWhom);
+      if (searchVehicleNumber) queryParams.append("vehicleNumber", searchVehicleNumber);
 
       const res = await api.get(`/api/vehicle-tickets/by-date?${queryParams}`);
       const ticketData = res.data.tickets || [];
       setTickets(ticketData);
-      setFilteredTickets(ticketData);
 
       const total = ticketData.reduce(
         (sum, t) => sum + parseFloat(t.ticketPrice || 0),
@@ -121,15 +116,6 @@ const GateDailyTickets = () => {
     } finally {
       setLoading(false);
     }
-  };
-
-  const filterTickets = () => {
-    const filtered = tickets.filter((ticket) =>
-      ticket.vehicleNumber
-        .toLowerCase()
-        .includes(searchVehicleNumber.toLowerCase())
-    );
-    setFilteredTickets(filtered);
   };
 
   const handleDeleteTicket = async (id) => {
@@ -199,14 +185,14 @@ const GateDailyTickets = () => {
           <div>
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-xl font-semibold text-gray-700">
-                Tickets ({filteredTickets.length})
+                Tickets ({tickets.length})
               </h3>
               <button
                 onClick={() =>
-                  exportGateTicketsExcel(filteredTickets, gateNumber, searchDate)
+                  exportGateTicketsExcel(tickets, gateNumber, searchDate)
                 }
                 className="bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-lg transition"
-                disabled={filteredTickets.length === 0}
+                disabled={tickets.length === 0}
               >
                 Export to Excel
               </button>
@@ -233,8 +219,8 @@ const GateDailyTickets = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredTickets.length > 0 ? (
-                      filteredTickets.map((ticket, index) => (
+                    {tickets.length > 0 ? (
+                      tickets.map((ticket, index) => (
                         <tr key={ticket.id} className="border-b hover:bg-gray-50">
                           <td className="p-3">{index + 1}</td>
                           <td className="p-3">{ticket.id}</td>

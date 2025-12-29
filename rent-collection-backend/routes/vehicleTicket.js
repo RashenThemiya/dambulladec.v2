@@ -141,29 +141,34 @@ router.get(
   authenticateUser,
   authorizeRole(["admin", "superadmin"]),
   async (req, res) => {
-    const { startDate, endDate, byWhom, vehicleTypeId, gateNumber ,vehicleNumber } = req.query;
+    const { startDate, endDate, byWhom, vehicleTypeId, gateNumber, vehicleNumber } = req.query;
 
     try {
       const whereClause = {};
 
-      if (startDate) whereClause.entryTime = { [Op.gte]: new Date(startDate) };
-      if (endDate)
+      // ✅ FIX: Add time to make it work for full day
+      if (startDate) {
+        whereClause.entryTime = { 
+          [Op.gte]: new Date(startDate + 'T00:00:00') 
+        };
+      }
+      if (endDate) {
         whereClause.entryTime = {
           ...(whereClause.entryTime || {}),
-          [Op.lte]: new Date(endDate),
+          [Op.lte]: new Date(endDate + 'T23:59:59')
         };
+      }
+
       if (byWhom) whereClause.byWhom = { [Op.like]: `%${byWhom}%` };
       if (vehicleTypeId) whereClause.vehicleTypeId = vehicleTypeId;
       if (gateNumber) whereClause.gateNumber = gateNumber;
       if (vehicleNumber) whereClause.vehicleNumber = { [Op.like]: `%${vehicleNumber}%` };
-
 
       const { rows, count } = await VehicleTicket.findAndCountAll({
         where: whereClause,
         include: [
           { model: VehicleType, attributes: ["id", "name", "defaultPrice"] },
         ],
-
         order: [["entryTime", "DESC"]],
       });
 
