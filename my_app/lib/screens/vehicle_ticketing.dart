@@ -18,7 +18,7 @@ class _VehicleTicketingPageState extends State<VehicleTicketingPage> {
   int? _selectedVehicleTypeId;
   double _ticketPrice = 0.0;
   String _vehicleNumber = '';
-  String? _selectedProvince;
+String? _selectedProvince = 'Other'; // default value
 bool get _isPrinterReady {
   if (_hasPosPrinter) return true;
   if (_selectedDevice != null) return true;
@@ -39,7 +39,7 @@ final TextEditingController _vehicleNumberController =
   String? _responseMessage;
 
   // ================= GATE FEATURE =================
-  final List<String> _gates = ['GATE1', 'GATE2', 'GATE3', 'GATE4', 'GATE5'];
+  final List<String> _gates = ['GATE1', 'GATE2', 'GATE3', 'GATE4', 'GATE5', 'GATE_EMG'];
   String? _selectedGate;
 
   // ================= PRINTERS =================
@@ -179,7 +179,6 @@ final TextEditingController _vehicleNumberController =
         _vehicleNumber = '';
         _selectedVehicleTypeId = null;
         _ticketPrice = 0.0;
-        _selectedProvince = null;
         _vehicleNumberController.clear();
       });
       
@@ -312,6 +311,7 @@ final byWhom = ticket['byWhom'] ?? '';
                   const SizedBox(height: 16),
 
                   // ================= PROVINCE =================
+                 /*
                   Text("Select Province", style: TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
                   Wrap(
@@ -327,6 +327,7 @@ final byWhom = ticket['byWhom'] ?? '';
                     }).toList(),
                   ),
                   const SizedBox(height: 16),
+                  */
 
                   // ================= PRINTER SELECTION =================
                   if (!_hasPosPrinter)
