@@ -16,19 +16,26 @@ const {
 
 const router = express.Router();
 
-/**
- * 🔥 ATOMIC gate-wise increment (FIRST TIME SAFE)
- */
+function getSriLankaDate() {
+  const now = new Date();
+
+  // Convert to Sri Lanka time (+5:30)
+  const slTime = new Date(now.getTime() + 5.5 * 60 * 60 * 1000);
+
+  return slTime.toISOString().slice(0, 10); // YYYY-MM-DD
+}
 async function getNextGateSequence(gateNumber, transaction) {
-  // 1️⃣ Ensure gate exists (auto-create)
+  const counterDate = getSriLankaDate();
+
+  // 1️⃣ Ensure row exists (gate + date)
   await sequelize.query(
     `
-    INSERT INTO gate_counters (gateNumber, currentValue)
-    VALUES (:gateNumber, 0)
+    INSERT INTO gate_counters (gateNumber, counterDate, currentValue)
+    VALUES (:gateNumber, :counterDate, 0)
     ON DUPLICATE KEY UPDATE gateNumber = gateNumber
     `,
     {
-      replacements: { gateNumber },
+      replacements: { gateNumber, counterDate },
       transaction,
     }
   );
@@ -38,33 +45,37 @@ async function getNextGateSequence(gateNumber, transaction) {
     `
     UPDATE gate_counters
     SET currentValue = LAST_INSERT_ID(currentValue + 1)
-    WHERE gateNumber = :gateNumber
+    WHERE gateNumber = :gateNumber AND counterDate = :counterDate
     `,
     {
-      replacements: { gateNumber },
+      replacements: { gateNumber, counterDate },
       transaction,
     }
   );
 
-  // 3️⃣ Get incremented value
+  // 3️⃣ Read incremented value
   const [[{ nextSeq }]] = await sequelize.query(
     `SELECT LAST_INSERT_ID() AS nextSeq`,
     { transaction }
   );
 
-  return String(nextSeq).padStart(3, "0"); // 001, 002 ...
+  return String(nextSeq).padStart(3, "0");
 }
 
 /**
  * ✅ ISSUE VEHICLE TICKET
- */
-router.post(
+ */router.post(
   "/",
   authenticateUser,
   authorizeRole(["admin", "superadmin", "tiketing"]),
   async (req, res) => {
-    const { vehicleNumber, vehicleTypeId, fromLocation, products, gateNumber } =
-      req.body;
+    const {
+      vehicleNumber,
+      vehicleTypeId,
+      fromLocation,
+      products,
+      gateNumber,
+    } = req.body;
 
     if (!vehicleNumber || !vehicleTypeId || !gateNumber) {
       return res.status(400).json({
@@ -75,29 +86,21 @@ router.post(
     const t = await sequelize.transaction();
 
     try {
-      // validate vehicle type
       const vehicleType = await VehicleType.findByPk(vehicleTypeId, {
         transaction: t,
       });
+
       if (!vehicleType) {
         await t.rollback();
         return res.status(400).json({ message: "Invalid vehicle type." });
       }
 
-      // 🔥 gate validation OPTIONAL now (auto-create)
-      // if you want strict validation, keep this block
-      // otherwise remove it
-      if (GateCounter.rawAttributes?.gateNumber) {
-        await GateCounter.findOrCreate({
-          where: { gateNumber },
-          defaults: { currentValue: 0 },
-          transaction: t,
-        });
-      }
-
-      // get next gate-wise sequence
+      // ✅ get gate-wise + date-wise counter
       const seq = await getNextGateSequence(gateNumber, t);
-      const customId = `${gateNumber}_${seq}`;
+
+      // example: G1_2025-01-30_15
+      const today = new Date().toISOString().slice(0, 10);
+      const customId = `${gateNumber}_${today}_${seq}`;
 
       const ticket = await VehicleTicket.create(
         {
@@ -119,7 +122,6 @@ router.post(
 
       res.status(201).json({
         message: "Ticket issued successfully",
-        ticketId: ticket.id,
         customId,
         ticket,
       });
@@ -281,22 +283,60 @@ router.get(
 
 /**
  * ❌ DELETE TICKET
- */
-router.delete(
+ */router.delete(
   "/:id",
   authenticateUser,
   authorizeRole(["admin", "superadmin"]),
   async (req, res) => {
+    const t = await sequelize.transaction();
     try {
-      const ticket = await VehicleTicket.findByPk(req.params.id);
-      if (!ticket) return res.status(404).json({ message: "Ticket not found" });
+      // 1️⃣ Find the ticket
+      const ticket = await VehicleTicket.findByPk(req.params.id, { transaction: t });
+      if (!ticket) {
+        await t.rollback();
+        return res.status(404).json({ message: "Ticket not found" });
+      }
 
-      await ticket.destroy();
-      res.json({ message: "Ticket deleted successfully" });
+      const gateNumber = ticket.gateNumber;
+      const counterDate = ticket.entryTime.toISOString().slice(0, 10); // YYYY-MM-DD
+
+      // 2️⃣ Extract sequence from customId (assuming format: G1_YYYY-MM-DD_seq)
+      const parts = ticket.customId.split("_");
+      const ticketSeq = parseInt(parts[2], 10);
+
+      // 3️⃣ Get current gate counter
+      const [[{ currentValue }]] = await sequelize.query(
+        `SELECT currentValue FROM gate_counters 
+         WHERE gateNumber = :gateNumber AND counterDate = :counterDate`,
+        { replacements: { gateNumber, counterDate }, transaction: t }
+      );
+
+      // 4️⃣ Only allow deletion if this is the last ticket
+      if (ticketSeq !== currentValue) {
+        await t.rollback();
+        return res.status(400).json({
+          message: "Can only delete the last ticket issued for this gate and date.",
+        });
+      }
+
+      // 5️⃣ Decrement gate counter
+      await sequelize.query(
+        `UPDATE gate_counters 
+         SET currentValue = currentValue - 1 
+         WHERE gateNumber = :gateNumber AND counterDate = :counterDate`,
+        { replacements: { gateNumber, counterDate }, transaction: t }
+      );
+
+      // 6️⃣ Delete ticket
+      await ticket.destroy({ transaction: t });
+
+      await t.commit();
+      res.json({
+        message: "Last ticket deleted successfully and gate counter updated.",
+      });
     } catch (error) {
-      res
-        .status(500)
-        .json({ message: "Error deleting ticket", error: error.message });
+      await t.rollback();
+      res.status(500).json({ message: "Error deleting ticket", error: error.message });
     }
   }
 );
@@ -363,45 +403,60 @@ router.get(
     }
   }
 );
-
-// 🔹 DELETE VEHICLE TYPE
 router.delete(
-  "/vehicle-type/:id",
+  "/vehicle-ticket/:id",
   authenticateUser,
   authorizeRole(["admin", "superadmin"]),
   async (req, res) => {
+    const t = await sequelize.transaction();
     try {
-      const vehicleType = await VehicleType.findByPk(req.params.id);
-
-      if (!vehicleType) {
-        return res.status(404).json({ message: "Vehicle type not found." });
+      const ticket = await VehicleTicket.findByPk(req.params.id, { transaction: t });
+      if (!ticket) {
+        await t.rollback();
+        return res.status(404).json({ message: "Ticket not found" });
       }
 
-      // Optional: Check if any tickets exist for this type
-      const ticketCount = await VehicleTicket.count({
-        where: { vehicleTypeId: vehicleType.id },
-      });
-      if (ticketCount > 0) {
-        return res
-          .status(400)
-          .json({
-            message: "Cannot delete vehicle type with existing tickets.",
-          });
-      }
+      const gateNumber = ticket.gateNumber;
+      const counterDate = ticket.entryTime.toISOString().slice(0, 10);
 
-      await vehicleType.destroy();
-      res.json({ message: "Vehicle type deleted successfully." });
-    } catch (error) {
-      res
-        .status(500)
-        .json({
-          message: "Error deleting vehicle type.",
-          error: error.message,
+      // Extract sequence number from customId (assumes format G1_YYYY-MM-DD_seq)
+      const parts = ticket.customId.split("_");
+      const ticketSeq = parseInt(parts[2], 10);
+
+      // Get current gate counter
+      const [[{ currentValue }]] = await sequelize.query(
+        `SELECT currentValue FROM gate_counters WHERE gateNumber = :gateNumber AND counterDate = :counterDate`,
+        { replacements: { gateNumber, counterDate }, transaction: t }
+      );
+
+      if (ticketSeq !== currentValue) {
+        await t.rollback();
+        return res.status(400).json({
+          message: "Can only delete the last ticket issued for this gate and date.",
         });
+      }
+
+      // Decrement gate counter
+      await sequelize.query(
+        `UPDATE gate_counters
+         SET currentValue = currentValue - 1
+         WHERE gateNumber = :gateNumber AND counterDate = :counterDate`,
+        { replacements: { gateNumber, counterDate }, transaction: t }
+      );
+
+      // Delete ticket
+      await ticket.destroy({ transaction: t });
+
+      await t.commit();
+      res.json({
+        message: "Last ticket deleted successfully and gate counter updated.",
+      });
+    } catch (error) {
+      await t.rollback();
+      res.status(500).json({ message: "Error deleting ticket", error: error.message });
     }
   }
 );
-
 router.get(
   "/monthly-income-excel",
   authenticateUser,
@@ -414,58 +469,46 @@ router.get(
       if (byWhom) whereClause.byWhom = { [Op.like]: `%${byWhom}%` };
       if (vehicleTypeId) whereClause.vehicleTypeId = vehicleTypeId;
 
-      // Get all monthly income gate-wise
+      // Convert entryTime to Sri Lanka time (+5:30) using nested DATE_ADD
+      const slEntryTime = "DATE_ADD(DATE_ADD(entryTime, INTERVAL 5 HOUR), INTERVAL 30 MINUTE)";
+
       const data = await VehicleTicket.findAll({
         attributes: [
-          [fn("YEAR", col("entryTime")), "year"],
-          [fn("MONTH", col("entryTime")), "month"],
+          [fn("YEAR", literal(slEntryTime)), "year"],
+          [fn("MONTH", literal(slEntryTime)), "month"],
           "gateNumber",
           [fn("SUM", col("ticketPrice")), "totalIncome"],
           [fn("COUNT", col("id")), "ticketCount"],
         ],
         where: whereClause,
         group: [
-          fn("YEAR", col("entryTime")),
-          fn("MONTH", col("entryTime")),
+          literal(`YEAR(${slEntryTime})`),
+          literal(`MONTH(${slEntryTime})`),
           "gateNumber",
         ],
         order: [
-          [fn("YEAR", col("entryTime")), "DESC"],
-          [fn("MONTH", col("entryTime")), "DESC"],
+          [literal(`YEAR(${slEntryTime})`), "DESC"],
+          [literal(`MONTH(${slEntryTime})`), "DESC"],
           ["gateNumber", "ASC"],
         ],
         raw: true,
       });
 
       if (!data.length) {
-        return res
-          .status(404)
-          .json({ message: "No data available for Excel export." });
+        return res.status(404).json({ message: "No data available for Excel export." });
       }
 
-      // Prepare worksheet
-      const wsData = [
-        ["Year", "Month", "Gate Number", "Total Income", "Ticket Count"],
-      ];
-
+      const wsData = [["Year", "Month", "Gate Number", "Total Income", "Ticket Count"]];
       data.forEach((row) => {
-        wsData.push([
-          row.year,
-          row.month,
-          row.gateNumber,
-          row.totalIncome,
-          row.ticketCount,
-        ]);
+        wsData.push([row.year, row.month, row.gateNumber, row.totalIncome, row.ticketCount]);
       });
 
       const ws = XLSX.utils.aoa_to_sheet(wsData);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "MonthlyIncome");
 
-      // Generate buffer
       const buffer = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
 
-      // Set headers to download
       res.setHeader(
         "Content-Disposition",
         'attachment; filename="monthly_income_gatewise.xlsx"'
@@ -478,12 +521,11 @@ router.get(
       res.send(buffer);
     } catch (error) {
       console.error(error);
-      res
-        .status(500)
-        .json({ message: "Error generating Excel file", error: error.message });
+      res.status(500).json({ message: "Error generating Excel file", error: error.message });
     }
   }
 );
+
 
 // 🔹 EDIT VEHICLE TYPE
 router.patch(
@@ -530,5 +572,75 @@ router.patch(
     }
   }
 );
+router.get(
+  "/daily-income-excel",
+  authenticateUser,
+  authorizeRole(["admin", "superadmin"]),
+  async (req, res) => {
+    const { startDate, endDate, vehicleTypeId, byWhom, gateNumber } = req.query;
+
+    try {
+      const whereClause = {};
+
+      const start = startDate ? getSriLankaDate(startDate) : getSriLankaDate();
+      const end = endDate ? getSriLankaDate(endDate) : getSriLankaDate();
+
+      whereClause.entryTime = { 
+        [Op.gte]: new Date(start + "T00:00:00"),
+        [Op.lte]: new Date(end + "T23:59:59")
+      };
+
+      if (byWhom) whereClause.byWhom = { [Op.like]: `%${byWhom}%` };
+      if (vehicleTypeId) whereClause.vehicleTypeId = vehicleTypeId;
+      if (gateNumber) whereClause.gateNumber = gateNumber;
+
+      const data = await VehicleTicket.findAll({
+        attributes: [
+          [fn("DATE", col("entryTime")), "date"],
+          "gateNumber",
+          [fn("SUM", col("ticketPrice")), "totalIncome"],
+          [fn("COUNT", col("id")), "ticketCount"],
+        ],
+        where: whereClause,
+        group: [literal("DATE(entryTime)"), "gateNumber"],
+        order: [
+          [literal("DATE(entryTime)"), "DESC"],
+          ["gateNumber", "ASC"],
+        ],
+        raw: true,
+      });
+
+      if (!data.length) {
+        return res.status(404).json({ message: "No data available for Excel export." });
+      }
+
+      const wsData = [["Date", "Gate Number", "Total Income", "Ticket Count"]];
+      data.forEach((row) => {
+        wsData.push([row.date, row.gateNumber, row.totalIncome, row.ticketCount]);
+      });
+
+      const ws = XLSX.utils.aoa_to_sheet(wsData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "DailyIncome");
+
+      const buffer = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
+
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="daily_income_gatewise_${start}.xlsx"`
+      );
+      res.setHeader(
+        "Content-Type",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      );
+
+      res.send(buffer);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Error generating Excel file", error: error.message });
+    }
+  }
+);
+
 
 module.exports = router;

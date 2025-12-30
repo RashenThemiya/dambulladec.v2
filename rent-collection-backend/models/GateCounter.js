@@ -6,6 +6,11 @@ const GateCounter = sequelize.define('GateCounter', {
     type: DataTypes.STRING,
     primaryKey: true
   },
+  counterDate: {
+      type: DataTypes.DATEONLY, // YYYY-MM-DD
+      allowNull: true,
+      primaryKey: true,
+    },
   currentValue: {
     type: DataTypes.INTEGER,
     allowNull: false,

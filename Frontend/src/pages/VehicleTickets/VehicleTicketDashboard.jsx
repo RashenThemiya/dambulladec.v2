@@ -77,6 +77,23 @@ const VehicleDashboard = () => {
       console.error("Error downloading Excel:", err);
     }
   };
+// Download Daily Excel via backend API
+const downloadDailyExcel = async () => {
+  try {
+    const today = moment().format("YYYY-MM-DD");
+    const res = await api.get(
+      `/api/vehicle-tickets/daily-income-excel?startDate=${today}&endDate=${today}`,
+      { responseType: "blob" }
+    );
+
+    const blob = new Blob([res.data], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    saveAs(blob, `DailyIncome_${today}.xlsx`);
+  } catch (err) {
+    console.error("Error downloading daily Excel:", err);
+  }
+};
 
   return (
   <div className="flex flex-col md:flex-row h-screen">
@@ -101,6 +118,12 @@ const VehicleDashboard = () => {
           >
             Download Monthly Income Excel
           </button>
+            <button
+              className="bg-yellow-600 text-white px-4 py-2 rounded hover:bg-yellow-700"
+              onClick={downloadDailyExcel}
+            >
+              Download Daily Income Excel
+            </button>
         </div>
 
         {loading ? (
