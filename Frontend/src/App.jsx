@@ -48,6 +48,8 @@ import TenantManagement from './pages/TenantManagement/TenantManagement';
 import ViewTenants from './pages/TenantManagement/ViewTenants';
 import VehicleTicket from './pages/VehicleTickets/VehicleTickets';
 import VehicleDashboard from './pages/VehicleTickets/VehicleTicketDashboard';
+import GateDailyTickets from './pages/VehicleTickets/GateDailyTickets';
+import GateMonthlyTickets from './pages/VehicleTickets/GateMonthlyTickets';
 function App() {
   return (
     <AuthProvider>
@@ -114,6 +116,14 @@ function App() {
             <Route path="/system-setting" element={<PrivateRoute><SystemSetting /></PrivateRoute>} />
             <Route path="/SanitationDashboard" element={<PrivateRoute><SanitationDashboard /></PrivateRoute>} />
             <Route path="/VehicleTicketDashboard" element={<PrivateRoute><VehicleDashboard /></PrivateRoute>} />
+            <Route 
+  path="/gate/:gateNumber/daily" 
+  element={<GateDailyTickets />} 
+/>
+<Route 
+  path="/gate/:gateNumber/monthly" 
+  element={<GateMonthlyTickets />} 
+/>
           </Routes>
           <ToastContainer />
         </div>
