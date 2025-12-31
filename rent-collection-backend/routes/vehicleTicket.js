@@ -16,23 +16,26 @@ const {
 
 const router = express.Router();
 
-function getSriLankaDate() {
+function getSriLankaDateTime() {
   const now = new Date();
-
-  // Convert to Sri Lanka time (+5:30)
-  const slTime = new Date(now.getTime() + 5.5 * 60 * 60 * 1000);
-
-  return slTime.toISOString().slice(0, 10); // YYYY-MM-DD
+  return new Date(now.getTime() + 5.5 * 60 * 60 * 1000);
 }
-async function getNextGateSequence(gateNumber, transaction) {
-  const counterDate = getSriLankaDate();
 
-  // 1️⃣ Ensure row exists (gate + date)
+function getSriLankaDateOnly() {
+  return getSriLankaDateTime().toISOString().slice(0, 10); // YYYY-MM-DD
+}
+
+
+
+async function getNextGateSequence(gateNumber, transaction) {
+  const counterDate = getSriLankaDateOnly();
+
+  // 1️⃣ Ensure row exists
   await sequelize.query(
     `
     INSERT INTO gate_counters (gateNumber, counterDate, currentValue)
     VALUES (:gateNumber, :counterDate, 0)
-    ON DUPLICATE KEY UPDATE gateNumber = gateNumber
+    ON DUPLICATE KEY UPDATE currentValue = currentValue
     `,
     {
       replacements: { gateNumber, counterDate },
@@ -44,7 +47,7 @@ async function getNextGateSequence(gateNumber, transaction) {
   await sequelize.query(
     `
     UPDATE gate_counters
-    SET currentValue = LAST_INSERT_ID(currentValue + 1)
+    SET currentValue = currentValue + 1
     WHERE gateNumber = :gateNumber AND counterDate = :counterDate
     `,
     {
@@ -53,18 +56,23 @@ async function getNextGateSequence(gateNumber, transaction) {
     }
   );
 
-  // 3️⃣ Read incremented value
-  const [[{ nextSeq }]] = await sequelize.query(
-    `SELECT LAST_INSERT_ID() AS nextSeq`,
-    { transaction }
+  // 3️⃣ Read updated value
+  const [[row]] = await sequelize.query(
+    `
+    SELECT currentValue 
+    FROM gate_counters
+    WHERE gateNumber = :gateNumber AND counterDate = :counterDate
+    `,
+    {
+      replacements: { gateNumber, counterDate },
+      transaction,
+    }
   );
 
-  return String(nextSeq).padStart(3, "0");
+  return String(row.currentValue).padStart(3, "0");
 }
 
-/**
- * ✅ ISSUE VEHICLE TICKET
- */router.post(
+router.post(
   "/",
   authenticateUser,
   authorizeRole(["admin", "superadmin", "tiketing"]),
@@ -83,25 +91,30 @@ async function getNextGateSequence(gateNumber, transaction) {
       });
     }
 
-    const t = await sequelize.transaction();
+    const transaction = await sequelize.transaction();
 
     try {
+      // 1️⃣ Validate vehicle type
       const vehicleType = await VehicleType.findByPk(vehicleTypeId, {
-        transaction: t,
+        transaction,
       });
 
       if (!vehicleType) {
-        await t.rollback();
+        await transaction.rollback();
         return res.status(400).json({ message: "Invalid vehicle type." });
       }
 
-      // ✅ get gate-wise + date-wise counter
-      const seq = await getNextGateSequence(gateNumber, t);
+      // 2️⃣ Get next gate sequence (gate + date wise)
+      const seq = await getNextGateSequence(gateNumber, transaction);
 
-      // example: G1_2025-01-30_15
-      const today = new Date().toISOString().slice(0, 10);
-      const customId = `${gateNumber}_${today}_${seq}`;
+      // 3️⃣ Sri Lanka date everywhere
+      const slDate = getSriLankaDateOnly();
+      const entryTime = getSriLankaDateTime();
 
+      // Example: G1_2025-01-30_001
+      const customId = `${gateNumber}_${slDate}_${seq}`;
+
+      // 4️⃣ Create ticket
       const ticket = await VehicleTicket.create(
         {
           vehicleNumber,
@@ -112,13 +125,13 @@ async function getNextGateSequence(gateNumber, transaction) {
           products: products ? JSON.stringify(products) : null,
           gateNumber,
           customId,
-          entryTime: new Date(),
+          entryTime,
           byWhom: req.user.email,
         },
-        { transaction: t }
+        { transaction }
       );
 
-      await t.commit();
+      await transaction.commit();
 
       res.status(201).json({
         message: "Ticket issued successfully",
@@ -126,7 +139,7 @@ async function getNextGateSequence(gateNumber, transaction) {
         ticket,
       });
     } catch (error) {
-      await t.rollback();
+      await transaction.rollback();
       res.status(500).json({
         message: "Error issuing ticket",
         error: error.message,
@@ -134,6 +147,7 @@ async function getNextGateSequence(gateNumber, transaction) {
     }
   }
 );
+
 
 /**
  * 📋 GET TICKETS BY DATE
@@ -281,128 +295,102 @@ router.get(
   }
 );
 
-/**
- * ❌ DELETE TICKET
- */router.delete(
+// 🔹 DELETE VEHICLE TICKET
+router.delete(
   "/:id",
   authenticateUser,
   authorizeRole(["admin", "superadmin"]),
   async (req, res) => {
-    const t = await sequelize.transaction();
+    const transaction = await sequelize.transaction();
+
     try {
-      // 1️⃣ Find the ticket
-      const ticket = await VehicleTicket.findByPk(req.params.id, { transaction: t });
+      // 1️⃣ Find ticket
+      const ticket = await VehicleTicket.findByPk(req.params.id, {
+        transaction,
+      });
+
       if (!ticket) {
-        await t.rollback();
+        await transaction.rollback();
         return res.status(404).json({ message: "Ticket not found" });
       }
 
       const gateNumber = ticket.gateNumber;
-      const counterDate = ticket.entryTime.toISOString().slice(0, 10); // YYYY-MM-DD
 
-      // 2️⃣ Extract sequence from customId (assuming format: G1_YYYY-MM-DD_seq)
+      // ✅ FIX: Convert entryTime to Sri Lanka date
+      const slDate = new Date(
+        ticket.entryTime.getTime() + 5.5 * 60 * 60 * 1000
+      )
+        .toISOString()
+        .slice(0, 10);
+
+      const counterDate = slDate;
+
+      // 2️⃣ Extract sequence number from customId (G1_YYYY-MM-DD_001)
       const parts = ticket.customId.split("_");
       const ticketSeq = parseInt(parts[2], 10);
 
       // 3️⃣ Get current gate counter
-      const [[{ currentValue }]] = await sequelize.query(
-        `SELECT currentValue FROM gate_counters 
-         WHERE gateNumber = :gateNumber AND counterDate = :counterDate`,
-        { replacements: { gateNumber, counterDate }, transaction: t }
+      const [[row]] = await sequelize.query(
+        `
+        SELECT currentValue 
+        FROM gate_counters
+        WHERE gateNumber = :gateNumber
+          AND counterDate = :counterDate
+        `,
+        {
+          replacements: { gateNumber, counterDate },
+          transaction,
+        }
       );
 
-      // 4️⃣ Only allow deletion if this is the last ticket
-      if (ticketSeq !== currentValue) {
-        await t.rollback();
+      if (!row) {
+        await transaction.rollback();
         return res.status(400).json({
-          message: "Can only delete the last ticket issued for this gate and date.",
+          message: "Gate counter not found for this date.",
+        });
+      }
+
+      // 4️⃣ Allow delete ONLY if last ticket
+      if (ticketSeq !== row.currentValue) {
+        await transaction.rollback();
+        return res.status(400).json({
+          message:
+            "Only the last issued ticket for this gate and date can be deleted.",
         });
       }
 
       // 5️⃣ Decrement gate counter
       await sequelize.query(
-        `UPDATE gate_counters 
-         SET currentValue = currentValue - 1 
-         WHERE gateNumber = :gateNumber AND counterDate = :counterDate`,
-        { replacements: { gateNumber, counterDate }, transaction: t }
+        `
+        UPDATE gate_counters
+        SET currentValue = currentValue - 1
+        WHERE gateNumber = :gateNumber
+          AND counterDate = :counterDate
+        `,
+        {
+          replacements: { gateNumber, counterDate },
+          transaction,
+        }
       );
 
       // 6️⃣ Delete ticket
-      await ticket.destroy({ transaction: t });
+      await ticket.destroy({ transaction });
 
-      await t.commit();
+      await transaction.commit();
+
       res.json({
-        message: "Last ticket deleted successfully and gate counter updated.",
+        message: "Ticket deleted successfully and gate counter updated.",
       });
     } catch (error) {
-      await t.rollback();
-      res.status(500).json({ message: "Error deleting ticket", error: error.message });
+      await transaction.rollback();
+      res.status(500).json({
+        message: "Error deleting ticket",
+        error: error.message,
+      });
     }
   }
 );
 
-// 🔹 Add Vehicle Type Route
-router.post(
-  "/vehicle-type",
-  authenticateUser,
-  authorizeRole(["admin", "superadmin"]),
-  async (req, res) => {
-    const { name, defaultPrice, description } = req.body;
-
-    if (!name || !defaultPrice) {
-      return res.status(400).json({
-        message: "Vehicle type name and default price are required.",
-      });
-    }
-
-    try {
-      // Check if vehicle type already exists
-      const [vehicleType, created] = await VehicleType.findOrCreate({
-        where: { name },
-        defaults: { defaultPrice, description },
-      });
-
-      if (!created) {
-        return res
-          .status(400)
-          .json({ message: "Vehicle type already exists." });
-      }
-
-      res.status(201).json({
-        message: "Vehicle type created successfully",
-        vehicleType,
-      });
-    } catch (error) {
-      res
-        .status(500)
-        .json({ message: "Error creating vehicle type", error: error.message });
-    }
-  }
-);
-// 🔹 GET ALL VEHICLE TYPES
-router.get(
-  "/vehicle-types",
-  authenticateUser,
-  authorizeRole(["admin", "superadmin", "tiketing"]),
-  async (req, res) => {
-    try {
-      const vehicleTypes = await VehicleType.findAll({
-        attributes: ["id", "name", "defaultPrice", "description"],
-        order: [["name", "ASC"]],
-      });
-
-      res.status(200).json(vehicleTypes);
-    } catch (error) {
-      console.error(error);
-      res
-        .status(500)
-        .json({
-          message: "Error fetching vehicle types",
-          error: error.message,
-        });
-    }
-  }
-);
 router.delete(
   "/vehicle-ticket/:id",
   authenticateUser,
