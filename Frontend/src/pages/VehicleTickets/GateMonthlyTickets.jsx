@@ -11,11 +11,12 @@ import { useAuth } from "../../context/AuthContext";
 
 const exportMonthlyTicketsExcel = async (tickets, gateNumber, month, year) => {
   const workbook = new ExcelJS.Workbook();
-  const worksheet = workbook.addWorksheet(`Gate ${gateNumber} - ${month}/${year}`);
+  const worksheet = workbook.addWorksheet(
+    `Gate ${gateNumber} - ${month}/${year}`
+  );
 
   worksheet.columns = [
     { header: "#", key: "index", width: 8 },
-    { header: "Ref ID", key: "id", width: 12 },
     { header: "Custom ID", key: "customId", width: 15 },
     { header: "Vehicle Number", key: "vehicleNumber", width: 18 },
     { header: "Type", key: "vehicleType", width: 14 },
@@ -35,25 +36,23 @@ const exportMonthlyTicketsExcel = async (tickets, gateNumber, month, year) => {
     cell.alignment = { vertical: "middle", horizontal: "center" };
   });
 
-  tickets.forEach((ticket, idx) => {
+  tickets.forEach((ticket,idx) => {
     worksheet.addRow({
       index: idx + 1,
-      id: ticket.id,
       customId: ticket.customId,
       vehicleNumber: ticket.vehicleNumber,
       vehicleType: ticket.VehicleType?.name || ticket.vehicleType,
       ticketPrice: Number(ticket.ticketPrice).toFixed(2),
-      date: moment(ticket.entryTime).format("YYYY-MM-DD"),
-      time: moment(ticket.entryTime).format("HH:mm:ss"),
+      date: moment.utc(ticket.entryTime).format("YYYY-MM-DD"),
+      time: moment.utc(ticket.entryTime).format("HH:mm:ss"),
       byWhom: ticket.byWhom,
     });
   });
 
   const total = tickets.reduce((sum, t) => sum + parseFloat(t.ticketPrice), 0);
   const totalRow = worksheet.addRow({
-    index: "",
-    id: "Total",
-    customId: "",
+      index: "",
+       customId: "",
     vehicleNumber: "",
     vehicleType: "",
     ticketPrice: total.toFixed(2),
@@ -82,7 +81,9 @@ const GateMonthlyTickets = () => {
   const [error, setError] = useState(null);
   const [successMsg, setSuccessMsg] = useState("");
 
-  const [selectedMonth, setSelectedMonth] = useState(moment().format("YYYY-MM"));
+  const [selectedMonth, setSelectedMonth] = useState(
+    moment().format("YYYY-MM")
+  );
   const [searchVehicleNumber, setSearchVehicleNumber] = useState("");
   const [searchByWhom, setSearchByWhom] = useState("");
 
@@ -96,18 +97,23 @@ const GateMonthlyTickets = () => {
   const fetchTickets = async () => {
     setLoading(true);
     try {
-      const startOfMonth = moment(selectedMonth).startOf("month").format("YYYY-MM-DD");
-      const endOfMonth = moment(selectedMonth).endOf("month").format("YYYY-MM-DD");
+      const startOfMonth = moment(selectedMonth)
+        .startOf("month")
+        .format("YYYY-MM-DD");
+      const endOfMonth = moment(selectedMonth)
+        .endOf("month")
+        .format("YYYY-MM-DD");
 
       const queryParams = new URLSearchParams();
       queryParams.append("startDate", startOfMonth);
       queryParams.append("endDate", endOfMonth);
       queryParams.append("gateNumber", gateNumber);
       if (searchByWhom) queryParams.append("byWhom", searchByWhom);
-      if (searchVehicleNumber) queryParams.append("vehicleNumber", searchVehicleNumber);
+      if (searchVehicleNumber)
+        queryParams.append("vehicleNumber", searchVehicleNumber);
 
       const res = await api.get(`/api/vehicle-tickets/by-date?${queryParams}`);
-      
+
       const ticketData = res.data.tickets || [];
       setTickets(ticketData);
 
@@ -154,7 +160,9 @@ const GateMonthlyTickets = () => {
           </div>
 
           {error && <div className="mb-4 text-red-600">{error}</div>}
-          {successMsg && <div className="mb-4 text-green-600">{successMsg}</div>}
+          {successMsg && (
+            <div className="mb-4 text-green-600">{successMsg}</div>
+          )}
 
           <div className="bg-gradient-to-r from-blue-700 to-blue-900 text-white rounded-lg shadow-lg p-6 mb-6">
             <h3 className="text-lg font-semibold mb-2">
@@ -218,7 +226,7 @@ const GateMonthlyTickets = () => {
                   <thead className="bg-blue-600 text-white">
                     <tr>
                       <th className="p-3 text-left">#</th>
-                      <th className="p-3 text-left">Ref ID</th>
+                    
                       <th className="p-3 text-left">Custom ID</th>
                       <th className="p-3 text-left">Vehicle Number</th>
                       <th className="p-3 text-left">Type</th>
@@ -234,9 +242,12 @@ const GateMonthlyTickets = () => {
                   <tbody>
                     {tickets.length > 0 ? (
                       tickets.map((ticket, index) => (
-                        <tr key={ticket.id} className="border-b hover:bg-gray-50">
+                        <tr
+                          key={ticket.id}
+                          className="border-b hover:bg-gray-50"
+                        >
                           <td className="p-3">{index + 1}</td>
-                          <td className="p-3">{ticket.id}</td>
+                         
                           <td className="p-3 font-mono text-sm">
                             {ticket.customId}
                           </td>
@@ -246,23 +257,27 @@ const GateMonthlyTickets = () => {
                           </td>
                           <td className="p-3">Rs. {ticket.ticketPrice}</td>
                           <td className="p-3">
-                            {moment(ticket.entryTime).format("MMM DD")}
+                            {moment.utc(ticket.entryTime).format("MMM DD")}
                           </td>
                           <td className="p-3">
-                            {moment(ticket.entryTime).format("HH:mm")}
+                            {moment.utc(ticket.entryTime).format("HH:mm")}
                           </td>
                           <td className="p-3">{ticket.byWhom}</td>
                           {(role === "admin" || role === "superadmin") && (
                             <td className="p-3">
-                              <ConfirmWrapper
-                                message="Are you sure you want to delete this ticket?"
-                                onConfirm={() => handleDeleteTicket(ticket.id)}
-                              >
-                                <button className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm">
-                                  <span>Delete</span>
-                                  <FaTrash className="text-base" />
-                                </button>
-                              </ConfirmWrapper>
+                              {index === 0 ? (
+                                <ConfirmWrapper
+                                  message="Are you sure you want to delete this ticket?"
+                                  onConfirm={() =>
+                                    handleDeleteTicket(ticket.id)
+                                  }
+                                >
+                                  <button className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm">
+                                    <span>Delete</span>
+                                    <FaTrash className="text-base" />
+                                  </button>
+                                </ConfirmWrapper>
+                              ) : null}
                             </td>
                           )}
                         </tr>
@@ -272,10 +287,13 @@ const GateMonthlyTickets = () => {
                         <td
                           className="p-3 text-center text-gray-500"
                           colSpan={
-                            role === "admin" || role === "superadmin" ? "10" : "9"
+                            role === "admin" || role === "superadmin"
+                              ? "9"
+                              : "8"
                           }
                         >
-                          No tickets found for this gate in {moment(selectedMonth).format("MMMM YYYY")}.
+                          No tickets found for this gate in{" "}
+                          {moment(selectedMonth).format("MMMM YYYY")}.
                         </td>
                       </tr>
                     )}
