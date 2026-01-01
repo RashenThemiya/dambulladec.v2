@@ -568,14 +568,15 @@ router.get(
     const { startDate, endDate, vehicleTypeId, byWhom, gateNumber } = req.query;
 
     try {
-      const whereClause = {};
+      // ✅ Use query dates if provided, otherwise fallback to today in Sri Lanka
+      const start = startDate || getSriLankaDateOnly();
+      const end = endDate || getSriLankaDateOnly();
 
-      const start = startDate ? getSriLankaDate(startDate) : getSriLankaDate();
-      const end = endDate ? getSriLankaDate(endDate) : getSriLankaDate();
-
-      whereClause.entryTime = { 
-        [Op.gte]: new Date(start + "T00:00:00"),
-        [Op.lte]: new Date(end + "T23:59:59")
+      const whereClause = {
+        entryTime: {
+          [Op.gte]: new Date(start + "T00:00:00"),
+          [Op.lte]: new Date(end + "T23:59:59"),
+        },
       };
 
       if (byWhom) whereClause.byWhom = { [Op.like]: `%${byWhom}%` };
@@ -602,6 +603,7 @@ router.get(
         return res.status(404).json({ message: "No data available for Excel export." });
       }
 
+      // ✅ Prepare Excel data
       const wsData = [["Date", "Gate Number", "Total Income", "Ticket Count"]];
       data.forEach((row) => {
         wsData.push([row.date, row.gateNumber, row.totalIncome, row.ticketCount]);
@@ -613,6 +615,7 @@ router.get(
 
       const buffer = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
 
+      // ✅ Send Excel file
       res.setHeader(
         "Content-Disposition",
         `attachment; filename="daily_income_gatewise_${start}.xlsx"`
@@ -629,7 +632,6 @@ router.get(
     }
   }
 );
-
 
 // 🔹 GET ALL VEHICLE TYPES
 router.get(
