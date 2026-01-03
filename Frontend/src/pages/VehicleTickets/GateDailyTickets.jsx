@@ -63,7 +63,7 @@ const exportGateTicketsExcel = async (tickets, gateNumber, date) => {
   const buffer = await workbook.xlsx.writeBuffer();
   saveAs(
     new Blob([buffer]),
-    `Gate_${gateNumber}_Daily_${date}_${new Date().toISOString()}.xlsx`
+    `Gate_${gateNumber}_Daily_${date}.xlsx`
   );
 };
 
