@@ -242,7 +242,7 @@ const GateMonthlyTickets = () => {
                       <th className="p-3 text-left">Date</th>
                       <th className="p-3 text-left">Time</th>
                       <th className="p-3 text-left">By</th>
-                      {(role === "admin" || role === "superadmin") && (
+                      {( role === "superadmin") && (
                         <th className="p-3 text-left">Actions</th>
                       )}
                     </tr>
@@ -271,7 +271,7 @@ const GateMonthlyTickets = () => {
                             {moment.utc(ticket.entryTime).format("HH:mm")}
                           </td>
                           <td className="p-3">{ticket.byWhom}</td>
-                          {(role === "admin" || role === "superadmin") && (
+                          {( role === "superadmin") && (
                             <td className="p-3">
                               {index === 0 ? (
                                 <ConfirmWrapper
@@ -295,7 +295,7 @@ const GateMonthlyTickets = () => {
                         <td
                           className="p-3 text-center text-gray-500"
                           colSpan={
-                            role === "admin" || role === "superadmin"
+                             role === "superadmin"
                               ? "9"
                               : "8"
                           }
