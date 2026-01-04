@@ -12,6 +12,10 @@ const VehicleDashboard = () => {
   const [dailyIncome, setDailyIncome] = useState([]);
   const [monthlyIncome, setMonthlyIncome] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showDateModal, setShowDateModal] = useState(false);
+const [startDate, setStartDate] = useState("");
+const [endDate, setEndDate] = useState("");
+
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -94,10 +98,33 @@ const downloadDailyExcel = async () => {
     console.error("Error downloading daily Excel:", err);
   }
 };
+const downloadCustomExcel = async () => {
+  try {
+    if (!startDate) return alert("Please select start date");
 
+    const sDate = startDate;
+    const eDate = endDate || startDate;
+
+    const res = await api.get(
+      `/api/vehicle-tickets/daily-income-excel?startDate=${sDate}&endDate=${eDate}`,
+      { responseType: "blob" }
+    );
+
+    const blob = new Blob([res.data], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    });
+
+    saveAs(blob, `Income_${sDate}_to_${eDate}.xlsx`);
+    setShowDateModal(false);
+  } catch (err) {
+    console.error("Error downloading custom Excel:", err);
+  }
+};
   return (
+    
   <div className="flex flex-col md:flex-row h-screen">
     <Sidebar />
+    
     <div className="flex-1 overflow-auto p-6 bg-gray-100">
       <div className="bg-white shadow-md rounded-lg p-6 min-h-screen">
         <h3 className="text-3xl font-bold mb-8 text-gray-800 text-center">
@@ -125,6 +152,12 @@ const downloadDailyExcel = async () => {
               Download Daily Income Excel
             </button>
         </div>
+<button
+  className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700"
+  onClick={() => setShowDateModal(true)}
+>
+  Custom Date Income Report
+</button>
 
         {loading ? (
           <div className="flex justify-center items-center h-64">
@@ -169,7 +202,56 @@ const downloadDailyExcel = async () => {
         )}
       </div>
     </div>
+    {showDateModal && (
+  <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+    <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
+      <h3 className="text-xl font-bold mb-4 text-center">
+        Custom Income Report
+      </h3>
+
+      <div className="mb-4">
+        <label className="block text-sm font-medium mb-1">
+          Start Date
+        </label>
+        <input
+          type="date"
+          value={startDate}
+          onChange={(e) => setStartDate(e.target.value)}
+          className="w-full border rounded px-3 py-2"
+        />
+      </div>
+
+      <div className="mb-4">
+        <label className="block text-sm font-medium mb-1">
+          End Date (optional)
+        </label>
+        <input
+          type="date"
+          value={endDate}
+          onChange={(e) => setEndDate(e.target.value)}
+          className="w-full border rounded px-3 py-2"
+        />
+      </div>
+
+      <button
+        className="bg-green-600 text-white px-4 py-2 rounded w-full"
+        onClick={downloadCustomExcel}
+      >
+        Download Excel
+      </button>
+
+      <button
+        className="mt-4 text-sm text-gray-600 w-full"
+        onClick={() => setShowDateModal(false)}
+      >
+        Cancel
+      </button>
+    </div>
   </div>
+)}
+
+  </div>
+  
 );
 };
 

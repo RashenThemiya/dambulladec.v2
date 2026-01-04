@@ -559,8 +559,7 @@ router.patch(
         .json({ message: "Error updating vehicle type", error: error.message });
     }
   }
-);
-router.get(
+);router.get(
   "/daily-income-excel",
   authenticateUser,
   authorizeRole(["admin", "superadmin"]),
@@ -568,57 +567,128 @@ router.get(
     const { startDate, endDate, vehicleTypeId, byWhom, gateNumber } = req.query;
 
     try {
-      // ✅ Use query dates if provided, otherwise fallback to today in Sri Lanka
       const start = startDate || getSriLankaDateOnly();
       const end = endDate || getSriLankaDateOnly();
 
       const whereClause = {
         entryTime: {
-          [Op.gte]: new Date(start + "T00:00:00"),
-          [Op.lte]: new Date(end + "T23:59:59"),
-        },
+          [Op.gte]: new Date(`${start}T00:00:00`),
+          [Op.lte]: new Date(`${end}T23:59:59`)
+        }
       };
 
-      if (byWhom) whereClause.byWhom = { [Op.like]: `%${byWhom}%` };
       if (vehicleTypeId) whereClause.vehicleTypeId = vehicleTypeId;
       if (gateNumber) whereClause.gateNumber = gateNumber;
+      if (byWhom) whereClause.byWhom = { [Op.like]: `%${byWhom}%` };
 
-      const data = await VehicleTicket.findAll({
+      /* ===========================
+         1️⃣ Gate-wise Summary
+      ============================ */
+      const gateWise = await VehicleTicket.findAll({
         attributes: [
           [fn("DATE", col("entryTime")), "date"],
           "gateNumber",
           [fn("SUM", col("ticketPrice")), "totalIncome"],
-          [fn("COUNT", col("id")), "ticketCount"],
+          [fn("COUNT", col("id")), "ticketCount"]
         ],
         where: whereClause,
         group: [literal("DATE(entryTime)"), "gateNumber"],
-        order: [
-          [literal("DATE(entryTime)"), "DESC"],
-          ["gateNumber", "ASC"],
-        ],
-        raw: true,
+        order: [[literal("DATE(entryTime)"), "ASC"]],
+        raw: true
       });
 
-      if (!data.length) {
-        return res.status(404).json({ message: "No data available for Excel export." });
+      /* ===========================
+         2️⃣ Issued-by Summary
+      ============================ */
+      const issuedWise = await VehicleTicket.findAll({
+        attributes: [
+          "byWhom",
+          [fn("SUM", col("ticketPrice")), "totalIncome"],
+          [fn("COUNT", col("id")), "ticketCount"]
+        ],
+        where: whereClause,
+        group: ["byWhom"],
+        order: [[fn("SUM", col("ticketPrice")), "DESC"]],
+        raw: true
+      });
+
+      if (!gateWise.length && !issuedWise.length) {
+        return res.status(404).json({ message: "No data available for export." });
       }
 
-      // ✅ Prepare Excel data
-      const wsData = [["Date", "Gate Number", "Total Income", "Ticket Count"]];
-      data.forEach((row) => {
-        wsData.push([row.date, row.gateNumber, row.totalIncome, row.ticketCount]);
+      /* ===========================
+         3️⃣ Build Excel Sheet
+      ============================ */
+      const wsData = [];
+
+      // ---- Report Title ----
+      wsData.push(["VEHICLE INCOME REPORT"]);
+      wsData.push([`Date Range: ${start} to ${end}`]);
+      wsData.push([]);
+
+      // ---- Gate-wise Table ----
+      wsData.push(["Gate-wise Income Summary"]);
+      wsData.push(["Date", "Gate Number", "Total Income", "Ticket Count"]);
+
+      let gateTotalIncome = 0;
+      let gateTotalTickets = 0;
+
+      gateWise.forEach(row => {
+        wsData.push([
+          row.date,
+          row.gateNumber,
+          Number(row.totalIncome),
+          Number(row.ticketCount)
+        ]);
+        gateTotalIncome += Number(row.totalIncome);
+        gateTotalTickets += Number(row.ticketCount);
       });
 
+      wsData.push([
+        "TOTAL",
+        "",
+        gateTotalIncome,
+        gateTotalTickets
+      ]);
+
+      wsData.push([]);
+      wsData.push([]);
+
+      // ---- Issued-by Table ----
+      wsData.push(["Issued-by Income Summary"]);
+      wsData.push(["Issued By", "Total Income", "Ticket Count"]);
+
+      let issuedTotalIncome = 0;
+      let issuedTotalTickets = 0;
+
+      issuedWise.forEach(row => {
+        wsData.push([
+          row.byWhom || "Unknown",
+          Number(row.totalIncome),
+          Number(row.ticketCount)
+        ]);
+        issuedTotalIncome += Number(row.totalIncome);
+        issuedTotalTickets += Number(row.ticketCount);
+      });
+
+      wsData.push([
+        "TOTAL",
+        issuedTotalIncome,
+        issuedTotalTickets
+      ]);
+
+      /* ===========================
+         4️⃣ Generate Excel
+      ============================ */
       const ws = XLSX.utils.aoa_to_sheet(wsData);
       const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "DailyIncome");
+      XLSX.utils.book_append_sheet(wb, ws, "Income Report");
 
       const buffer = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
 
-      // ✅ Send Excel file
       res.setHeader(
         "Content-Disposition",
-        `attachment; filename="daily_income_gatewise_${start}.xlsx"`
+        `attachment; filename="vehicle_income_${start}_to_${end}.xlsx"`
       );
       res.setHeader(
         "Content-Type",
@@ -626,12 +696,17 @@ router.get(
       );
 
       res.send(buffer);
+
     } catch (error) {
       console.error(error);
-      res.status(500).json({ message: "Error generating Excel file", error: error.message });
+      res.status(500).json({
+        message: "Error generating Excel report",
+        error: error.message
+      });
     }
   }
 );
+
 
 // 🔹 GET ALL VEHICLE TYPES
 router.get(
