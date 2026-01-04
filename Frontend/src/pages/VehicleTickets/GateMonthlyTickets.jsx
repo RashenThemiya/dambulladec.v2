@@ -9,67 +9,75 @@ import ConfirmWrapper from "../../components/ConfirmWrapper";
 import api from "../../utils/axiosInstance";
 import { useAuth } from "../../context/AuthContext";
 
+
+
 const exportMonthlyTicketsExcel = async (tickets, gateNumber, month, year) => {
-  const workbook = new ExcelJS.Workbook();
-  const worksheet = workbook.addWorksheet(
-    `Gate ${gateNumber} - ${month}/${year}`
-  );
+  try {
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet(
+  `Gate ${gateNumber} - ${month}-${year}`  
+);
 
-  worksheet.columns = [
-    { header: "#", key: "index", width: 8 },
-    { header: "Custom ID", key: "customId", width: 15 },
-    { header: "Vehicle Number", key: "vehicleNumber", width: 18 },
-    { header: "Type", key: "vehicleType", width: 14 },
-    { header: "Price", key: "ticketPrice", width: 12 },
-    { header: "Date", key: "date", width: 15 },
-    { header: "Time", key: "time", width: 12 },
-    { header: "By", key: "byWhom", width: 25 },
-  ];
+    worksheet.columns = [
+      { header: "#", key: "index", width: 8 },
+      { header: "Custom ID", key: "customId", width: 15 },
+      { header: "Vehicle Number", key: "vehicleNumber", width: 18 },
+      { header: "Type", key: "vehicleType", width: 14 },
+      { header: "Price", key: "ticketPrice", width: 12 },
+      { header: "Date", key: "date", width: 15 },
+      { header: "Time", key: "time", width: 12 },
+      { header: "By", key: "byWhom", width: 25 },
+    ];
 
-  worksheet.getRow(1).eachCell((cell) => {
-    cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
-    cell.fill = {
-      type: "pattern",
-      pattern: "solid",
-      fgColor: { argb: "FF2196F3" },
-    };
-    cell.alignment = { vertical: "middle", horizontal: "center" };
-  });
-
-  tickets.forEach((ticket,idx) => {
-    worksheet.addRow({
-      index: idx + 1,
-      customId: ticket.customId,
-      vehicleNumber: ticket.vehicleNumber,
-      vehicleType: ticket.VehicleType?.name || ticket.vehicleType,
-      ticketPrice: Number(ticket.ticketPrice).toFixed(2),
-      date: moment.utc(ticket.entryTime).format("YYYY-MM-DD"),
-      time: moment.utc(ticket.entryTime).format("HH:mm:ss"),
-      byWhom: ticket.byWhom,
+    worksheet.getRow(1).eachCell((cell) => {
+      cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+      cell.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "FF2196F3" },
+      };
+      cell.alignment = { vertical: "middle", horizontal: "center" };
     });
-  });
 
-  const total = tickets.reduce((sum, t) => sum + parseFloat(t.ticketPrice), 0);
-  const totalRow = worksheet.addRow({
+    tickets.forEach((ticket, idx) => {
+      worksheet.addRow({
+        index: idx + 1,
+        customId: ticket.customId,
+        vehicleNumber: ticket.vehicleNumber,
+        vehicleType: ticket.VehicleType?.name || ticket.vehicleType,
+        ticketPrice: Number(ticket.ticketPrice).toFixed(2),
+        date: moment.utc(ticket.entryTime).format("YYYY-MM-DD"),
+        time: moment.utc(ticket.entryTime).format("HH:mm:ss"),
+        byWhom: ticket.byWhom,
+      });
+    });
+
+    const total = tickets.reduce((sum, t) => sum + parseFloat(t.ticketPrice), 0);
+    const totalRow = worksheet.addRow({
       index: "",
-       customId: "",
-    vehicleNumber: "",
-    vehicleType: "",
-    ticketPrice: total.toFixed(2),
-    date: "",
-    time: "",
-    byWhom: "",
-  });
+      customId: "",
+      vehicleNumber: "",
+      vehicleType: "Total",
+      ticketPrice: total.toFixed(2),
+      date: "",
+      time: "",
+      byWhom: "",
+    });
 
-  totalRow.font = { bold: true };
-  worksheet.getColumn("ticketPrice").numFmt = "0.00";
+    totalRow.font = { bold: true };
+    worksheet.getColumn("ticketPrice").numFmt = "0.00";
 
-  const buffer = await workbook.xlsx.writeBuffer();
-  saveAs(
-    new Blob([buffer]),
-    `Gate_${gateNumber}_Monthly_${year}_${month}_${new Date().toISOString()}.xlsx`
-  );
+    const buffer = await workbook.xlsx.writeBuffer();
+   saveAs(
+  new Blob([buffer]),
+  `Gate_${gateNumber}_Monthly_${year}-${month}.xlsx` 
+);
+  } catch (error) {
+    console.error("Excel export error:", error);
+    
+  }
 };
+
 
 const GateMonthlyTickets = () => {
   const { gateNumber } = useParams();
@@ -226,7 +234,7 @@ const GateMonthlyTickets = () => {
                   <thead className="bg-blue-600 text-white">
                     <tr>
                       <th className="p-3 text-left">#</th>
-                    
+
                       <th className="p-3 text-left">Custom ID</th>
                       <th className="p-3 text-left">Vehicle Number</th>
                       <th className="p-3 text-left">Type</th>
@@ -234,7 +242,7 @@ const GateMonthlyTickets = () => {
                       <th className="p-3 text-left">Date</th>
                       <th className="p-3 text-left">Time</th>
                       <th className="p-3 text-left">By</th>
-                      {(role === "admin" || role === "superadmin") && (
+                      {( role === "superadmin") && (
                         <th className="p-3 text-left">Actions</th>
                       )}
                     </tr>
@@ -247,7 +255,7 @@ const GateMonthlyTickets = () => {
                           className="border-b hover:bg-gray-50"
                         >
                           <td className="p-3">{index + 1}</td>
-                         
+
                           <td className="p-3 font-mono text-sm">
                             {ticket.customId}
                           </td>
@@ -263,7 +271,7 @@ const GateMonthlyTickets = () => {
                             {moment.utc(ticket.entryTime).format("HH:mm")}
                           </td>
                           <td className="p-3">{ticket.byWhom}</td>
-                          {(role === "admin" || role === "superadmin") && (
+                          {( role === "superadmin") && (
                             <td className="p-3">
                               {index === 0 ? (
                                 <ConfirmWrapper
@@ -287,7 +295,7 @@ const GateMonthlyTickets = () => {
                         <td
                           className="p-3 text-center text-gray-500"
                           colSpan={
-                            role === "admin" || role === "superadmin"
+                             role === "superadmin"
                               ? "9"
                               : "8"
                           }
