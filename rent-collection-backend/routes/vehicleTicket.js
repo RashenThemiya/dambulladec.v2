@@ -327,7 +327,7 @@ router.delete(
 
       // 2️⃣ Extract sequence number from customId (G1_YYYY-MM-DD_001)
       const parts = ticket.customId.split("_");
-      const ticketSeq = parseInt(parts[2], 10);
+const ticketSeq = parseInt(parts[parts.length - 1], 10);
 
       // 3️⃣ Get current gate counter
       const [[row]] = await sequelize.query(
@@ -559,7 +559,9 @@ router.patch(
         .json({ message: "Error updating vehicle type", error: error.message });
     }
   }
-);router.get(
+);
+
+router.get(
   "/daily-income-excel",
   authenticateUser,
   authorizeRole(["admin", "superadmin"]),
