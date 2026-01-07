@@ -68,8 +68,7 @@ async function adjustFineBasedOnPaymentDate(invoice, paymentTimestamp, shopBalan
 
             // 🔹 Subtract shop balance
             const balanceAmount = parseFloat(shopBalance?.balance_amount || 0);
-            const outstanding = unpaidTotal - balanceAmount;
-
+            const outstanding = unpaidTotal;
             if (outstanding > 0) totalFineAmount = +(outstanding * 0.30).toFixed(2);
         } else {
             // Non-December: normal per-invoice fine
