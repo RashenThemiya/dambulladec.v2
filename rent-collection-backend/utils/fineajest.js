@@ -36,66 +36,55 @@ async function adjustFineBasedOnPaymentDate(invoice, paymentTimestamp, shopBalan
 
     // 2️⃣ Payment after 15th → calculate and apply fine
     if (!isBeforeOrOn15th) {
-        let totalFineAmount = 0;
+        // Only create fine if it doesn't already exist
+        const existingFine = await Fine.findOne({ where: { invoice_id: invoice.invoice_id }, transaction });
+        if (!existingFine) {
+            let totalFineAmount = 0;
 
-        if (isDecember) {
-            // December: calculate shop-wide outstanding including existing fines
-            let unpaidTotal = 0;
+            if (isDecember) {
+                // December: calculate shop-wide outstanding including existing fines
+                let unpaidTotal = 0;
 
-            // 🔹 Unpaid rents
-            const rents = await Rent.findAll({ where: { shop_id: invoice.shop_id }, transaction });
-            rents.forEach(r => {
-                unpaidTotal += Math.max(0, Number(r.rent_amount) - Number(r.paid_amount));
-            });
+                const rents = await Rent.findAll({ where: { shop_id: invoice.shop_id }, transaction });
+                rents.forEach(r => unpaidTotal += Math.max(0, Number(r.rent_amount) - Number(r.paid_amount)));
 
-            // 🔹 Unpaid operation fees
-            const ops = await OperationFee.findAll({ where: { shop_id: invoice.shop_id }, transaction });
-            ops.forEach(o => {
-                unpaidTotal += Math.max(0, Number(o.operation_amount) - Number(o.paid_amount));
-            });
+                const ops = await OperationFee.findAll({ where: { shop_id: invoice.shop_id }, transaction });
+                ops.forEach(o => unpaidTotal += Math.max(0, Number(o.operation_amount) - Number(o.paid_amount)));
 
-            // 🔹 Unpaid VAT
-            const vats = await VAT.findAll({ where: { shop_id: invoice.shop_id }, transaction });
-            vats.forEach(v => {
-                unpaidTotal += Math.max(0, Number(v.vat_amount) - Number(v.paid_amount));
-            });
+                const vats = await VAT.findAll({ where: { shop_id: invoice.shop_id }, transaction });
+                vats.forEach(v => unpaidTotal += Math.max(0, Number(v.vat_amount) - Number(v.paid_amount)));
 
-            // 🔹 Existing fines
-            const existingFines = await Fine.findAll({ where: { shop_id: invoice.shop_id }, transaction });
-            existingFines.forEach(f => {
-                unpaidTotal += Math.max(0, Number(f.fine_amount) - Number(f.paid_amount));
-            });
+                const fines = await Fine.findAll({ where: { shop_id: invoice.shop_id }, transaction });
+                fines.forEach(f => unpaidTotal += Math.max(0, Number(f.fine_amount) - Number(f.paid_amount)));
 
-            // 🔹 Subtract shop balance
-            const balanceAmount = parseFloat(shopBalance?.balance_amount || 0);
-            const outstanding = unpaidTotal;
-            if (outstanding > 0) totalFineAmount = +(outstanding * 0.30).toFixed(2);
-        } else {
-            // Non-December: normal per-invoice fine
-            const rents = await Rent.findAll({ where: { invoice_id: invoice.invoice_id }, transaction });
-            rents.forEach(r => {
-                const unpaid = Math.max(0, Number(r.rent_amount) - Number(r.paid_amount));
-                totalFineAmount += unpaid * 0.30;
-            });
-            totalFineAmount = +totalFineAmount.toFixed(2);
-        }
+                if (unpaidTotal > 0) totalFineAmount = +(unpaidTotal * 0.30).toFixed(2);
+            } else {
+                // Non-December: fine per invoice
+                const rents = await Rent.findAll({ where: { invoice_id: invoice.invoice_id }, transaction });
+                rents.forEach(r => {
+                    const unpaid = Math.max(0, Number(r.rent_amount) - Number(r.paid_amount));
+                    totalFineAmount += unpaid * 0.30;
+                });
+                totalFineAmount = +totalFineAmount.toFixed(2);
+            }
 
-        if (totalFineAmount > 0) {
-            await Fine.create({
-                invoice_id: invoice.invoice_id,
-                shop_id: invoice.shop_id,
-                fine_amount: totalFineAmount,
-                status: 'Unpaid',
-                paid_amount: 0
-            }, { transaction });
+            if (totalFineAmount > 0) {
+                await Fine.create({
+                    invoice_id: invoice.invoice_id,
+                    shop_id: invoice.shop_id,
+                    fine_amount: totalFineAmount,
+                    status: 'Unpaid',
+                    paid_amount: 0
+                }, { transaction });
 
-            await AuditTrail.create({
-                shop_id: invoice.shop_id,
-                invoice_id: invoice.invoice_id,
-                event_type: 'Fine Applied',
-                event_description: `Late payment fine of ${totalFineAmount} applied.`,
-                user_actioned: adminName
-            }, { transaction });
+                await AuditTrail.create({
+                    shop_id: invoice.shop_id,
+                    invoice_id: invoice.invoice_id,
+                    event_type: 'Fine Applied',
+                    event_description: `Late payment fine of ${totalFineAmount} applied.`,
+                    user_actioned: adminName
+                }, { transaction });
+            }
         }
     }
 
