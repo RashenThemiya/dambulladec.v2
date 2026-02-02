@@ -23,6 +23,13 @@ const Publication = sequelize.define('Publication', {
     type: DataTypes.BLOB("long"), // Store image binary data
     allowNull: true,
   },
+  fileUrl: {
+    type: DataTypes.STRING(500), // Store Google Drive or any external file link
+    allowNull: true,             // Optional, user may not upload a file
+    validate: {
+      isUrl: true,               // Ensures it's a valid URL
+    },
+  },
 }, {
   timestamps: true,
   tableName: 'publications', // Not limited to announcements only

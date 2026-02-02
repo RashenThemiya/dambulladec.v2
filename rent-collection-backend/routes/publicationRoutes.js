@@ -52,7 +52,7 @@ router.get('/:publicationId', async (req, res) => {
 
 // Add new publication
 router.post('/', authenticateUser, authorizeRole(['admin', 'superadmin']), upload.single('image'), async (req, res) => {
-  const { type, topic, description } = req.body;
+  const { type, topic, description, fileUrl } = req.body;
   const image = req.file ? req.file.buffer : null;
 
   if (!type || !topic || !description) {
@@ -60,7 +60,7 @@ router.post('/', authenticateUser, authorizeRole(['admin', 'superadmin']), uploa
   }
 
   try {
-    const newPublication = await Publication.create({ type, topic, description, image });
+    const newPublication = await Publication.create({ type, topic, description, image, fileUrl });
     res.status(201).json({ message: 'Publication added successfully', publicationId: newPublication.id });
   } catch (err) {
     res.status(500).json({ message: 'Error adding publication', error: err.message });
@@ -69,7 +69,7 @@ router.post('/', authenticateUser, authorizeRole(['admin', 'superadmin']), uploa
 
 // Update publication
 router.put('/:publicationId', authenticateUser, authorizeRole(['admin', 'superadmin']), upload.single('image'), async (req, res) => {
-  const { type, topic, description } = req.body;
+  const { type, topic, description, fileUrl } = req.body;
   const image = req.file ? req.file.buffer : null;
 
   if (!type || !topic || !description) {
