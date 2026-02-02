@@ -11,6 +11,7 @@ const AddPublication = () => {
         topic: "",
         description: "",
         image: null,
+        fileUrl: "",
     });
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
@@ -56,6 +57,9 @@ const AddPublication = () => {
         formData.append("description", publication.description);
         if (publication.image) {
             formData.append("image", publication.image);
+        }
+         if (publication.fileUrl) {
+            formData.append("fileUrl", publication.fileUrl);
         }
 
         try {
@@ -152,6 +156,14 @@ const AddPublication = () => {
                         type="file"
                         name="image"
                         onChange={handleFileChange}
+                        className="w-full p-2 border border-gray-300 rounded-lg"
+                    />
+                     <input
+                        type="url"
+                        name="fileUrl"
+                        placeholder="Google Drive File Link"
+                        value={publication.fileUrl}
+                        onChange={handleChange}
                         className="w-full p-2 border border-gray-300 rounded-lg"
                     />
 
