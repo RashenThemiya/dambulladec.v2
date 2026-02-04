@@ -33,66 +33,109 @@ function NotificationCard({ item }) {
     notice: "bg-yellow-400 text-black",
     announcement: "bg-green-500",
   };
-const badgeText = {
-  notice: "Notice",
-  news: "News",
-  announcement: "Announcement",
-  event: "Event",
-};
+
+  const badgeText = {
+    notice: "Notice",
+    news: "News",
+    announcement: "Announcement",
+    event: "Event",
+  };
 
   return (
     <motion.div
-  whileHover={{ y: -4 }}
-  className={`relative rounded-2xl overflow-hidden bg-white shadow-xlg border-2 border-gray-200 hover:border-green-500 transition-all duration-300 w-[450px] h-[600px] flex flex-col justify-center items-center`}
->
-  {/* Badge */}
+      whileHover={{ y: -4 }}
+      className="
+        relative rounded-2xl overflow-hidden bg-green-25 shadow-xlg
+        border-2 border-gray-200 hover:border-green-500
+        transition-all duration-300
+        w-full max-w-[450px]
+        min-h-[400px]
+        flex flex-col mt-6
+      "
+    >
+{/* Top Overlay */}
+<div className="absolute top-3 left-3 right-3 flex flex-col gap-2 z-10">
+  {/* Badge (unchanged) */}
   <span
-    className={`absolute top-3 left-3 px-3 py-1 text-s rounded-full mb-1.5 ${
-      badgeColors[item.type]
-    }`}
+    className={`w-fit px-3 py-1 text-sm rounded-full ${badgeColors[item.type]}`}
   >
     {badgeText[item.type]}
   </span>
 
-  {/* Image */}
-  <div className="relative aspect-square w-[350px] bg-gray-100 mt-10">
-    <img
-      src={item.image}
-      alt={item.title}
-      className="absolute inset-0 w-full h-full object-cover"
-    />
+  {/* Topic (CENTERED) */}
+  <div
+    className="
+      mx-auto
+      px-3 py-1
+      text-sm font-bold
+      rounded-full
+      bg-white text-gray-800
+      border border-gray-300
+      max-w-full
+      truncate
+      text-center
+    "
+    title={item.topic}
+  >
+    {item.topic}
   </div>
-
-  {/* Content */}
-  <div className="p-5">
-    <h3 className="font-semibold text-lg">{item.title}</h3>
-    <p className="text-sm mt-2 text-gray-500 line-clamp-3">
-      {item.description}
-    </p>
-<div className="flex gap-4 justify-center items-center ">
-   <button
-  onClick={() => window.open(item.fileUrl, "_blank")}
-  className="mt-4 flex items-center justify-center gap-2 w-[100px] px-4 py-2 bg-blue-600 text-white font-medium rounded-lg shadow hover:bg-green-700 hover:shadow-lg active:scale-95 transition transform duration-200 mt-10 cursor-pointer"
->
-  View <ArrowRight size={16} />
-</button>
-    <a
-  href={toDriveDownloadUrl(item.fileUrl)}
-  target="_blank"
-  rel="noopener noreferrer"
-  className="mt-10 flex items-center justify-center gap-2 w-[120px]
-             px-4 py-2 bg-green-600 text-white font-medium rounded-lg shadow
-             hover:bg-green-700 hover:shadow-lg
-             active:scale-95 transition duration-200 cursor-pointer"
->
-  Download <Download size={20} strokeWidth={2.2} />
-</a>
 </div>
 
 
-  </div>
-</motion.div>
 
+      {/* Image */}
+      <div className="relative w-full aspect-square sm:aspect-[4/3] bg-gray-100 mt-12">
+        <img
+          src={item.image}
+          alt={item.title}
+          className="absolute inset-0 w-full h-full object-cover"
+        />
+      </div>
+
+      {/* Content */}
+      <div className="p-4 sm:p-5 flex flex-col flex-1">
+        <h3 className="font-semibold text-lg">{item.title}</h3>
+
+        <p className="text-sm mt-2 text-gray-500 line-clamp-3">
+          {item.description}
+        </p>
+
+        {/* Buttons */}
+        <div className="flex flex-col sm:flex-row gap-3 w-full mt-6">
+          <button
+            onClick={() => window.open(item.fileUrl, "_blank")}
+            className="
+             w-full sm:w-auto
+  min-w-0
+  px-4 py-2
+  flex items-center justify-center gap-1
+  bg-blue-600 text-white font-medium rounded-lg
+  shadow hover:bg-blue-800 hover:shadow-lg
+  active:scale-95 transition duration-200 cursor-pointer
+            "
+          >
+            View <ArrowRight size={16} className="inline ml-1" />
+          </button>
+
+          <a
+            href={toDriveDownloadUrl(item.fileUrl)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="
+              w-full sm:w-auto
+  min-w-0
+  px-4 py-2
+  flex items-center justify-center gap-2
+  bg-green-600 text-white font-medium rounded-lg
+  shadow hover:bg-green-700 hover:shadow-lg
+  active:scale-95 transition duration-200
+            "
+          >
+            Download <Download size={18} strokeWidth={2.2} />
+          </a>
+        </div>
+      </div>
+    </motion.div>
   );
 }
 
@@ -103,7 +146,6 @@ export default function EconomicCenterNews() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  /* ⭐ Embla with API */
   const [emblaRef, emblaApi] = useEmblaCarousel(
     { align: "start", loop: false },
     [Autoplay({ delay: 4500, stopOnInteraction: true })]
@@ -138,13 +180,13 @@ export default function EconomicCenterNews() {
     active === "all" ? data : data.filter((d) => d.type === active);
 
   return (
-    <div className="p-10 bg-green-50 min-h-screen">
+    <div className="p-6 sm:p-10 bg-green-50 min-h-screen">
       {/* Header */}
-      <div className="text-center max-w-2xl mx-auto">
+      <div className="text-center max-w-2xl mx-auto ">
         <span className="inline-block px-4 py-1 text-sm bg-green-100 text-green-700 rounded-full">
           Latest Updates
         </span>
-        <h1 className="text-4xl font-bold mt-4">
+        <h1 className="text-3xl sm:text-4xl font-bold mt-4">
           Economic Center <span className="text-green-600">News</span>
         </h1>
         <p className="mt-3 text-gray-500">
@@ -158,7 +200,7 @@ export default function EconomicCenterNews() {
           <button
             key={cat.key}
             onClick={() => setActive(cat.key)}
-            className={`px-4 py-2 rounded-full border flex items-center gap-2 text-sm transition ${
+            className={`px-4 py-2 rounded-full border border-gray-400 flex items-center gap-2 text-sm transition cursor-pointer ${
               active === cat.key
                 ? "bg-green-600 text-white"
                 : "bg-white hover:bg-green-50"
@@ -176,32 +218,35 @@ export default function EconomicCenterNews() {
 
       {!loading && !error && (
         <div className="relative mt-12">
-          {/* ⬅️➡️ Navigation Buttons */}
+          {/* Navigation */}
           <button
             onClick={scrollPrev}
-            className="absolute -left-6 top-1/2 -translate-y-1/2 z-10 bg-white shadow rounded-full p-2 hover:bg-green-50"
+            className="absolute -left-4 sm:-left-6 top-1/2 -translate-y-1/2 z-10 bg-white shadow rounded-full p-2 hover:bg-green-50"
           >
             <ChevronLeft />
           </button>
 
           <button
             onClick={scrollNext}
-            className="absolute -right-6 top-1/2 -translate-y-1/2 z-10 bg-white shadow rounded-full p-2 hover:bg-green-50"
+            className="absolute -right-4 sm:-right-6 top-1/2 -translate-y-1/2 z-10 bg-white shadow rounded-full p-2 hover:bg-green-50"
           >
             <ChevronRight />
           </button>
 
           {/* Slider */}
-          <div className="overflow-hidden " ref={emblaRef}>
-            <div className=" flex gap-1">
+          <div className="overflow-hidden px-2 sm:px-6" ref={emblaRef}>
+            <div className="flex gap-2">
               {filtered.map((item) => (
                 <div
                   key={item._id || item.id}
-                  className="flex-shrink-0
-                             w-full
-                             sm:w-1/2
-                             md:w-1/3
-                             lg:w-1/4"
+                  className="
+                    flex-shrink-0
+                    w-full
+                    sm:w-1/2
+                    md:w-1/3
+                    lg:w-1/4
+                    px-2
+                  "
                 >
                   <NotificationCard item={item} />
                 </div>
