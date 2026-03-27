@@ -514,6 +514,180 @@ router.get(
   }
 );
 
+router.get(
+  "/monthly-gate-ticket-count-excel",
+  authenticateUser,
+  authorizeRole(["admin", "superadmin"]),
+  async (req, res) => {
+    const { year, month, vehicleTypeId, byWhom } = req.query;
+
+    try {
+      if (!year || !month) {
+        return res.status(400).json({
+          message: "year and month are required. Example: ?year=2026&month=3",
+        });
+      }
+
+      const parsedYear = parseInt(year, 10);
+      const parsedMonth = parseInt(month, 10);
+
+      if (
+        isNaN(parsedYear) ||
+        isNaN(parsedMonth) ||
+        parsedMonth < 1 ||
+        parsedMonth > 12
+      ) {
+        return res.status(400).json({
+          message: "Invalid year or month",
+        });
+      }
+
+      const whereClause = {};
+      if (byWhom) {
+        whereClause.byWhom = { [Op.like]: `%${byWhom}%` };
+      }
+      if (vehicleTypeId) {
+        whereClause.vehicleTypeId = vehicleTypeId;
+      }
+
+      // Sri Lanka time = UTC + 5:30
+      const slEntryTime =
+        "DATE_ADD(DATE_ADD(entryTime, INTERVAL 5 HOUR), INTERVAL 30 MINUTE)";
+
+      // Filter only requested month/year using Sri Lanka time
+      whereClause[Op.and] = [
+        literal(`YEAR(${slEntryTime}) = ${parsedYear}`),
+        literal(`MONTH(${slEntryTime}) = ${parsedMonth}`),
+      ];
+
+      const data = await VehicleTicket.findAll({
+        attributes: [
+          "gateNumber",
+          [fn("DAY", literal(slEntryTime)), "day"],
+          [fn("COUNT", col("id")), "ticketCount"],
+        ],
+        where: whereClause,
+        group: ["gateNumber", literal(`DAY(${slEntryTime})`)],
+        order: [
+          ["gateNumber", "ASC"],
+          [literal(`DAY(${slEntryTime})`), "ASC"],
+        ],
+        raw: true,
+      });
+
+      if (!data.length) {
+        return res.status(404).json({
+          message: "No data available for the selected month.",
+        });
+      }
+
+      const daysInMonth = new Date(parsedYear, parsedMonth, 0).getDate();
+
+      // Collect all gates
+      const gateSet = new Set();
+      data.forEach((row) => {
+        gateSet.add(row.gateNumber || "Unknown Gate");
+      });
+
+      const gates = Array.from(gateSet).sort();
+
+      // Create pivot structure
+      const pivot = {};
+      gates.forEach((gate) => {
+        pivot[gate] = {};
+        for (let day = 1; day <= daysInMonth; day++) {
+          pivot[gate][day] = 0;
+        }
+      });
+
+      // Fill counts
+      data.forEach((row) => {
+        const gate = row.gateNumber || "Unknown Gate";
+        const day = parseInt(row.day, 10);
+        const count = parseInt(row.ticketCount, 10) || 0;
+
+        pivot[gate][day] = count;
+      });
+
+      // Build Excel rows
+      const headerRow = ["Gate"];
+      for (let day = 1; day <= daysInMonth; day++) {
+        headerRow.push(day.toString());
+      }
+      headerRow.push("Total");
+
+      const wsData = [];
+      wsData.push([`Month: ${parsedYear}-${String(parsedMonth).padStart(2, "0")}`]);
+      wsData.push([]);
+      wsData.push(headerRow);
+
+      // Gate rows
+      gates.forEach((gate) => {
+        const row = [gate];
+        let rowTotal = 0;
+
+        for (let day = 1; day <= daysInMonth; day++) {
+          const count = pivot[gate][day] || 0;
+          row.push(count);
+          rowTotal += count;
+        }
+
+        row.push(rowTotal);
+        wsData.push(row);
+      });
+
+      // Total row
+      const totalRow = ["TOTAL"];
+      let grandTotal = 0;
+
+      for (let day = 1; day <= daysInMonth; day++) {
+        let dayTotal = 0;
+        gates.forEach((gate) => {
+          dayTotal += pivot[gate][day] || 0;
+        });
+        totalRow.push(dayTotal);
+        grandTotal += dayTotal;
+      }
+
+      totalRow.push(grandTotal);
+      wsData.push(totalRow);
+
+      const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+      // Optional column widths
+      ws["!cols"] = [
+        { wch: 20 },
+        ...Array(daysInMonth).fill({ wch: 8 }),
+        { wch: 10 },
+      ];
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "GateWiseTicketCount");
+
+      const buffer = XLSX.write(wb, {
+        type: "buffer",
+        bookType: "xlsx",
+      });
+
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="gate_wise_ticket_count_${parsedYear}_${parsedMonth}.xlsx"`
+      );
+      res.setHeader(
+        "Content-Type",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      );
+
+      res.send(buffer);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({
+        message: "Error generating Excel file",
+        error: error.message,
+      });
+    }
+  }
+);
 
 // 🔹 EDIT VEHICLE TYPE
 router.patch(
