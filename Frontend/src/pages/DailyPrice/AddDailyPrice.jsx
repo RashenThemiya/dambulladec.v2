@@ -1,174 +1,548 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../utils/axiosInstance";
 import { useAuth } from "../../context/AuthContext";
 
+const getLocalDate = () => {
+  const today = new Date();
+
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, "0");
+  const day = String(today.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+};
+
 const AddDailyPrice = () => {
   const navigate = useNavigate();
+  const { name, role } = useAuth();
+
   const [products, setProducts] = useState([]);
-  const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
+  const [date, setDate] = useState(getLocalDate());
+
   const [prices, setPrices] = useState({});
+  const [existingProductIds, setExistingProductIds] = useState(
+    new Set()
+  );
+
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(true);
+  const [loadingPrices, setLoadingPrices] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [globalError, setGlobalError] = useState(null);
-  const [success, setSuccess] = useState(null);
-  const { name, role } = useAuth();
+
+  const [globalError, setGlobalError] = useState("");
+  const [success, setSuccess] = useState("");
 
   console.log("Logged in user:", name, "Role:", role);
 
-  useEffect(() => {
-    const fetchProducts = async () => {
-      try {
-        const res = await api.get("/api/products");
-        setProducts(res.data);
-      } catch (err) {
-        setGlobalError("Failed to load products.");
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchProducts();
+  const fetchProducts = useCallback(async () => {
+    setLoading(true);
+    setGlobalError("");
+
+    try {
+      const response = await api.get("/api/products");
+
+      setProducts(
+        Array.isArray(response.data) ? response.data : []
+      );
+    } catch (error) {
+      console.error("Failed to load products:", error);
+      setGlobalError("Failed to load products.");
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  const validateField = (productId, field, value) => {
-    const current = {
-      ...prices[productId],
-      [field]: value,
-    };
-
-    const min = parseFloat(current.min_price);
-    const max = parseFloat(current.max_price);
-
-    let error = "";
-
-    if ((current.min_price && !current.max_price) || (!current.min_price && current.max_price)) {
-      error = "Both min and max prices are required.";
-    } else if (min && max && min > max) {
-      error = "Min price should not exceed max price.";
+  const fetchExistingPrices = useCallback(async () => {
+    if (!date) {
+      return;
     }
 
-    setErrors((prev) => ({
-      ...prev,
-      [productId]: error,
+    setLoadingPrices(true);
+    setGlobalError("");
+    setSuccess("");
+
+    try {
+      const response = await api.get(
+        `/api/prices/by-date/${date}`
+      );
+
+      const existingPrices = Array.isArray(response.data)
+        ? response.data
+        : [];
+
+      const priceValues = {};
+      const savedProductIds = new Set();
+
+      existingPrices.forEach((priceItem) => {
+        const productId =
+          priceItem.product?.id || priceItem.product_id;
+
+        if (!productId) {
+          return;
+        }
+
+        priceValues[productId] = {
+          min_price:
+            priceItem.min_price !== null &&
+            priceItem.min_price !== undefined
+              ? String(priceItem.min_price)
+              : "",
+          max_price:
+            priceItem.max_price !== null &&
+            priceItem.max_price !== undefined
+              ? String(priceItem.max_price)
+              : "",
+        };
+
+        savedProductIds.add(String(productId));
+      });
+
+      setPrices(priceValues);
+      setExistingProductIds(savedProductIds);
+      setErrors({});
+
+      if (existingPrices.length > 0) {
+        setSuccess(
+          `${existingPrices.length} previously saved price records loaded for ${date}.`
+        );
+      }
+    } catch (error) {
+      console.error(
+        "Failed to load existing prices:",
+        error
+      );
+
+      setPrices({});
+      setExistingProductIds(new Set());
+
+      setGlobalError(
+        "Failed to load previously saved prices."
+      );
+    } finally {
+      setLoadingPrices(false);
+    }
+  }, [date]);
+
+  useEffect(() => {
+    fetchProducts();
+  }, [fetchProducts]);
+
+  useEffect(() => {
+    fetchExistingPrices();
+  }, [fetchExistingPrices]);
+
+  const validateProductPrices = (productId, values) => {
+    const minValue = values.min_price;
+    const maxValue = values.max_price;
+
+    const minPrice =
+      minValue === "" || minValue === undefined
+        ? null
+        : Number(minValue);
+
+    const maxPrice =
+      maxValue === "" || maxValue === undefined
+        ? null
+        : Number(maxValue);
+
+    let errorMessage = "";
+
+    const onlyOneValueEntered =
+      (minPrice !== null && maxPrice === null) ||
+      (minPrice === null && maxPrice !== null);
+
+    if (onlyOneValueEntered) {
+      errorMessage =
+        "Both minimum and maximum prices are required.";
+    } else if (
+      minPrice !== null &&
+      maxPrice !== null &&
+      (Number.isNaN(minPrice) || Number.isNaN(maxPrice))
+    ) {
+      errorMessage = "Please enter valid price values.";
+    } else if (
+      minPrice !== null &&
+      maxPrice !== null &&
+      (minPrice < 0 || maxPrice < 0)
+    ) {
+      errorMessage = "Prices cannot be negative.";
+    } else if (
+      minPrice !== null &&
+      maxPrice !== null &&
+      minPrice > maxPrice
+    ) {
+      errorMessage =
+        "Minimum price cannot exceed maximum price.";
+    }
+
+    setErrors((previousErrors) => ({
+      ...previousErrors,
+      [productId]: errorMessage,
     }));
+
+    return errorMessage;
   };
 
-  const handlePriceChange = (productId, field, value) => {
-    setPrices((prev) => ({
-      ...prev,
-      [productId]: {
-        ...prev[productId],
+  const handlePriceChange = (
+    productId,
+    field,
+    value
+  ) => {
+    setSuccess("");
+    setGlobalError("");
+
+    setPrices((previousPrices) => {
+      const updatedProductPrice = {
+        min_price:
+          previousPrices[productId]?.min_price || "",
+        max_price:
+          previousPrices[productId]?.max_price || "",
         [field]: value,
-      },
-    }));
-    validateField(productId, field, value);
+      };
+
+      validateProductPrices(
+        productId,
+        updatedProductPrice
+      );
+
+      return {
+        ...previousPrices,
+        [productId]: updatedProductPrice,
+      };
+    });
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setSubmitting(true);
-    setGlobalError(null);
-    setSuccess(null);
+  const clearProductPrice = (productId) => {
+    setPrices((previousPrices) => {
+      const updatedPrices = {
+        ...previousPrices,
+      };
 
-    const dataToSubmit = Object.entries(prices)
-      .filter(([_, value]) => value.min_price && value.max_price)
-      .map(([product_id, value]) => ({
-        product_id,
-        min_price: parseFloat(value.min_price),
-        max_price: parseFloat(value.max_price),
-        date,
+      delete updatedPrices[productId];
+
+      return updatedPrices;
+    });
+
+    setErrors((previousErrors) => {
+      const updatedErrors = {
+        ...previousErrors,
+      };
+
+      delete updatedErrors[productId];
+
+      return updatedErrors;
+    });
+  };
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+
+    setSubmitting(true);
+    setGlobalError("");
+    setSuccess("");
+
+    const currentErrors = {};
+    const dataToSubmit = [];
+
+    Object.entries(prices).forEach(
+      ([productId, productPrice]) => {
+        const minValue =
+          productPrice.min_price?.trim?.() || "";
+        const maxValue =
+          productPrice.max_price?.trim?.() || "";
+
+        if (!minValue && !maxValue) {
+          return;
+        }
+
+        const validationError =
+          validateProductPrices(
+            productId,
+            productPrice
+          );
+
+        if (validationError) {
+          currentErrors[productId] =
+            validationError;
+          return;
+        }
+
+        dataToSubmit.push({
+          product_id: productId,
+          min_price: Number(minValue),
+          max_price: Number(maxValue),
+          date,
+        });
+      }
+    );
+
+    if (Object.keys(currentErrors).length > 0) {
+      setErrors((previousErrors) => ({
+        ...previousErrors,
+        ...currentErrors,
       }));
 
-    // Check if there are any validation errors
-    const hasErrors = Object.values(errors).some((e) => e);
-    if (hasErrors || dataToSubmit.length === 0) {
-      setGlobalError("Please fix the validation errors before submitting.");
+      setGlobalError(
+        "Please fix the validation errors before submitting."
+      );
+
+      setSubmitting(false);
+      return;
+    }
+
+    if (dataToSubmit.length === 0) {
+      setGlobalError(
+        "Please enter at least one product price range."
+      );
+
       setSubmitting(false);
       return;
     }
 
     try {
-      await api.post("/api/prices/update-multiple", dataToSubmit);
-      setSuccess("Prices added/updated successfully!");
-      setPrices({});
-      setErrors({});
-      setTimeout(() => navigate("/daily-price"), 2000);
-    } catch (err) {
-      setGlobalError("Failed to update prices.");
+      const response = await api.post(
+        "/api/prices/update-multiple",
+        dataToSubmit
+      );
+
+      setSuccess(
+        response.data?.message ||
+          "Prices added or updated successfully."
+      );
+
+      await fetchExistingPrices();
+
+      setTimeout(() => {
+        navigate("/daily-price");
+      }, 2000);
+    } catch (error) {
+      console.error("Failed to update prices:", error);
+
+      setGlobalError(
+        error.response?.data?.message ||
+          "Failed to update prices."
+      );
     } finally {
       setSubmitting(false);
     }
   };
 
-  if (loading) return <div className="text-center">Loading...</div>;
-  if (globalError) return <div className="text-center text-red-500">{globalError}</div>;
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gray-100">
+        <p className="text-gray-600">
+          Loading products...
+        </p>
+      </div>
+    );
+  }
 
   return (
-    <div className="flex justify-center items-center min-h-screen bg-gray-100">
-      <div className="bg-white p-8 rounded-lg shadow-lg w-full max-w-6xl">
-        <h2 className="text-2xl font-bold mb-6 text-center">Add Daily Price Ranges</h2>
+    <div className="min-h-screen bg-gray-100 px-4 py-8">
+      <div className="mx-auto w-full max-w-6xl rounded-xl bg-white p-6 shadow-lg sm:p-8">
+        <div className="mb-6">
+          <h2 className="text-center text-2xl font-bold text-gray-900">
+            Add Daily Price Ranges
+          </h2>
 
-        {success && <p className="text-green-500 text-sm mb-4 text-center">{success}</p>}
-        {globalError && <p className="text-red-500 text-sm mb-4 text-center">{globalError}</p>}
+          <p className="mt-2 text-center text-sm text-gray-500">
+            Previously saved prices for the selected date
+            will be loaded automatically.
+          </p>
+        </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+        {success && (
+          <div className="mb-5 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-center text-sm text-green-700">
+            {success}
+          </div>
+        )}
+
+        {globalError && (
+          <div className="mb-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-center text-sm text-red-700">
+            {globalError}
+          </div>
+        )}
+
+        <form
+          onSubmit={handleSubmit}
+          className="space-y-6"
+        >
+          <div className="max-w-sm">
+            <label
+              htmlFor="price-date"
+              className="mb-1 block text-sm font-medium text-gray-700"
+            >
+              Date
+            </label>
+
             <input
+              id="price-date"
               type="date"
               value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="w-full p-2 border border-gray-300 rounded-lg"
+              onChange={(event) =>
+                setDate(event.target.value)
+              }
+              className="w-full rounded-lg border border-gray-300 p-2.5 outline-none focus:border-green-600 focus:ring-2 focus:ring-green-100"
               required
             />
+
+            {loadingPrices && (
+              <p className="mt-2 text-sm text-gray-500">
+                Loading existing prices...
+              </p>
+            )}
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="min-w-full table-auto border border-gray-300">
-              <thead className="bg-blue-600 text-white">
+          <div className="overflow-x-auto rounded-lg border border-gray-200">
+            <table className="min-w-full table-auto">
+              <thead className="bg-[#087b36] text-white">
                 <tr>
-                  <th className="px-4 py-2 text-left">Product</th>
-                  <th className="px-4 py-2 text-left">Type</th>
-                  <th className="px-4 py-2 text-left">Min Price (Rs.)</th>
-                  <th className="px-4 py-2 text-left">Max Price (Rs.)</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold">
+                    Product
+                  </th>
+
+                  <th className="px-4 py-3 text-left text-sm font-semibold">
+                    Type
+                  </th>
+
+                  <th className="px-4 py-3 text-left text-sm font-semibold">
+                    Min Price (Rs.)
+                  </th>
+
+                  <th className="px-4 py-3 text-left text-sm font-semibold">
+                    Max Price (Rs.)
+                  </th>
+
+                  <th className="px-4 py-3 text-center text-sm font-semibold">
+                    Status
+                  </th>
+
+                  <th className="px-4 py-3 text-center text-sm font-semibold">
+                    Clear
+                  </th>
                 </tr>
               </thead>
-              <tbody className="bg-white text-sm">
+
+              <tbody className="divide-y divide-gray-200 bg-white text-sm">
                 {products.map((product) => {
-                  const errorMsg = errors[product.id];
-                  const hasError = !!errorMsg;
+                  const productId = String(product.id);
+
+                  const errorMessage =
+                    errors[product.id] ||
+                    errors[productId];
+
+                  const hasError =
+                    Boolean(errorMessage);
+
+                  const wasPreviouslySaved =
+                    existingProductIds.has(
+                      productId
+                    );
 
                   return (
-                    <tr key={product.id} className="border-b">
-                      <td className="px-4 py-2">{product.name}</td>
-                      <td className="px-4 py-2">{product.type}</td>
-                      <td className="px-4 py-2">
+                    <tr
+                      key={product.id}
+                      className={
+                        wasPreviouslySaved
+                          ? "bg-green-50/50"
+                          : "hover:bg-gray-50"
+                      }
+                    >
+                      <td className="px-4 py-3 font-medium text-gray-800">
+                        {product.name}
+                      </td>
+
+                      <td className="px-4 py-3 text-gray-600">
+                        {product.type}
+                      </td>
+
+                      <td className="px-4 py-3">
                         <input
                           type="number"
+                          min="0"
                           step="0.01"
-                          value={prices[product.id]?.min_price || ""}
-                          onChange={(e) =>
-                            handlePriceChange(product.id, "min_price", e.target.value)
+                          value={
+                            prices[product.id]
+                              ?.min_price ??
+                            prices[productId]
+                              ?.min_price ??
+                            ""
                           }
-                          className={`w-full p-2 border ${hasError ? "border-red-500" : "border-gray-300"
-                            } rounded-lg`}
+                          onChange={(event) =>
+                            handlePriceChange(
+                              product.id,
+                              "min_price",
+                              event.target.value
+                            )
+                          }
+                          className={`w-full min-w-32 rounded-lg border p-2 outline-none focus:ring-2 ${
+                            hasError
+                              ? "border-red-500 focus:ring-red-100"
+                              : "border-gray-300 focus:border-green-600 focus:ring-green-100"
+                          }`}
+                          placeholder="0.00"
                         />
                       </td>
-                      <td className="px-4 py-2">
+
+                      <td className="px-4 py-3">
                         <input
                           type="number"
+                          min="0"
                           step="0.01"
-                          value={prices[product.id]?.max_price || ""}
-                          onChange={(e) =>
-                            handlePriceChange(product.id, "max_price", e.target.value)
+                          value={
+                            prices[product.id]
+                              ?.max_price ??
+                            prices[productId]
+                              ?.max_price ??
+                            ""
                           }
-                          className={`w-full p-2 border ${hasError ? "border-red-500" : "border-gray-300"
-                            } rounded-lg`}
+                          onChange={(event) =>
+                            handlePriceChange(
+                              product.id,
+                              "max_price",
+                              event.target.value
+                            )
+                          }
+                          className={`w-full min-w-32 rounded-lg border p-2 outline-none focus:ring-2 ${
+                            hasError
+                              ? "border-red-500 focus:ring-red-100"
+                              : "border-gray-300 focus:border-green-600 focus:ring-green-100"
+                          }`}
+                          placeholder="0.00"
                         />
+
                         {hasError && (
-                          <p className="text-red-500 text-xs mt-1">{errorMsg}</p>
+                          <p className="mt-1 text-xs text-red-500">
+                            {errorMessage}
+                          </p>
                         )}
+                      </td>
+
+                      <td className="px-4 py-3 text-center">
+                        {wasPreviouslySaved ? (
+                          <span className="inline-flex rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-700">
+                            Previously saved
+                          </span>
+                        ) : (
+                          <span className="inline-flex rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-500">
+                            New
+                          </span>
+                        )}
+                      </td>
+
+                      <td className="px-4 py-3 text-center">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            clearProductPrice(
+                              product.id
+                            )
+                          }
+                          className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-600 transition hover:border-red-300 hover:bg-red-50 hover:text-red-600"
+                        >
+                          Clear
+                        </button>
                       </td>
                     </tr>
                   );
@@ -177,26 +551,33 @@ const AddDailyPrice = () => {
             </table>
           </div>
 
-          <button
-            type="submit"
-            disabled={submitting}
-            className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition duration-300"
-          >
-            {submitting ? "Saving..." : "Save All Price Ranges"}
-          </button>
+          <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+            <button
+              type="button"
+              onClick={() =>
+                navigate("/daily-price")
+              }
+              className="rounded-lg border border-gray-300 px-6 py-3 font-semibold text-gray-700 transition hover:bg-gray-100"
+            >
+              Cancel
+            </button>
 
-          <button
-            type="button"
-            onClick={() => navigate("/daily-price")}
-            className="w-full mt-2 bg-gray-500 text-white py-3 rounded-lg hover:bg-gray-600 transition duration-300"
-          >
-            Cancel
-          </button>
+            <button
+              type="submit"
+              disabled={
+                submitting || loadingPrices
+              }
+              className="rounded-lg bg-[#087b36] px-6 py-3 font-semibold text-white transition hover:bg-[#06682d] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {submitting
+                ? "Saving..."
+                : "Save All Price Ranges"}
+            </button>
+          </div>
         </form>
       </div>
     </div>
   );
-
 };
 
 export default AddDailyPrice;
