@@ -15,7 +15,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
   final List<Widget> _pages = [
     VehicleTicketingPage(),
     SanitationTicketingPage(),
-    Container(), // Placeholder for logout
+    Container(), // Logout placeholder
   ];
 
   void _onItemTapped(int index) {
@@ -32,11 +32,30 @@ class _AdminDashboardState extends State<AdminDashboard> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Admin Dashboard')),
-      body: _pages[_selectedIndex],
-      bottomNavigationBar: CustomNavBar(
-        currentIndex: _selectedIndex,
-        onTap: _onItemTapped,
+      // ❌ AppBar removed
+
+      body: Column(
+        children: [
+          // 🔝 Top Navigation Bar
+          SafeArea(
+            top: true,
+            bottom: false, // prevent extra padding
+            child: SizedBox(
+              height: 48,
+              child: ClipRect(
+                child: CustomNavBar(
+                  currentIndex: _selectedIndex,
+                  onTap: _onItemTapped,
+                ),
+              ),
+            ),
+          ),
+
+          // 📄 Page content
+          Expanded(
+            child: _pages[_selectedIndex],
+          ),
+        ],
       ),
     );
   }

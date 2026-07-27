@@ -5,10 +5,10 @@ packages:
     dependency: transitive
     description:
       name: archive
-      sha256: "2fde1607386ab523f7a36bb3e7edb43bd58e6edaf2ffb29d8a6d578b297fdbbd"
+      sha256: cb6a278ef2dbb298455e1a713bda08524a175630ec643a242c399c932a0a1f7d
       url: "https://pub.dev"
     source: hosted
-    version: "4.0.7"
+    version: "3.6.1"
   args:
     dependency: transitive
     description:
@@ -48,7 +48,15 @@ packages:
       sha256: faf38497bda5ead2a8c7615f4f7939df04333478bf32e4173fcb06d428b5716b
       url: "https://pub.dev"
     source: hosted
-    version: "1.4.1"
+    version: "1.4.0"
+  charset_converter:
+    dependency: transitive
+    description:
+      name: charset_converter
+      sha256: a601f27b78ca86c3d88899d53059786d9c3f3c485b64974e9105c06c2569aef5
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.3.0"
   checked_yaml:
     dependency: transitive
     description:
@@ -61,10 +69,10 @@ packages:
     dependency: transitive
     description:
       name: cli_util
-      sha256: ff6785f7e9e3c38ac98b2fb035701789de90154024a75b6cb926445e83197d1c
+      sha256: "66f86e916d285c1a93d3b79587d94bd71984a66aac4ff74e524cfa7877f1395c"
       url: "https://pub.dev"
     source: hosted
-    version: "0.4.2"
+    version: "0.3.5"
   clock:
     dependency: transitive
     description:
@@ -89,6 +97,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.0.6"
+  csslib:
+    dependency: transitive
+    description:
+      name: csslib
+      sha256: "09bad715f418841f976c77db72d5398dc1253c21fb9c0c7f0b0b985860b2d58e"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.0.2"
   cupertino_icons:
     dependency: "direct main"
     description:
@@ -97,6 +113,22 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.0.8"
+  esc_pos_printer:
+    dependency: "direct main"
+    description:
+      name: esc_pos_printer
+      sha256: "312b05f909f3f7dd1e6a3332cf384dcee2c3a635138823654cd9c0133d8b5c45"
+      url: "https://pub.dev"
+    source: hosted
+    version: "4.1.0"
+  esc_pos_utils:
+    dependency: "direct main"
+    description:
+      name: esc_pos_utils
+      sha256: "8ec0013d7a7f1e790ced6b09b95ce3bf2c6f9468a3e2bc49ece000761d86c6f8"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.1.0"
   fake_async:
     dependency: transitive
     description:
@@ -130,10 +162,10 @@ packages:
     dependency: "direct main"
     description:
       name: flutter_launcher_icons
-      sha256: "526faf84284b86a4cb36d20a5e45147747b7563d921373d4ee0559c54fcdbcea"
+      sha256: ce0e501cfc258907842238e4ca605e74b7fd1cdf04b3b43e86c43f3e40a1592c
       url: "https://pub.dev"
     source: hosted
-    version: "0.13.1"
+    version: "0.11.0"
   flutter_lints:
     dependency: "direct dev"
     description:
@@ -152,6 +184,30 @@ packages:
     description: flutter
     source: sdk
     version: "0.0.0"
+  gbk_codec:
+    dependency: transitive
+    description:
+      name: gbk_codec
+      sha256: "3af5311fc9393115e3650ae6023862adf998051a804a08fb804f042724999f61"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.4.0"
+  hex:
+    dependency: transitive
+    description:
+      name: hex
+      sha256: "4e7cd54e4b59ba026432a6be2dd9d96e4c5205725194997193bf871703b82c4a"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.2.0"
+  html:
+    dependency: transitive
+    description:
+      name: html
+      sha256: "6d1264f2dffa1b1101c25a91dff0dc2daee4c18e87cd8538729773c073dbf602"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.15.6"
   http:
     dependency: "direct main"
     description:
@@ -172,10 +228,10 @@ packages:
     dependency: transitive
     description:
       name: image
-      sha256: "4e973fcf4caae1a4be2fa0a13157aa38a8f9cb049db6529aa00b4d71abc4d928"
+      sha256: "8e9d133755c3e84c73288363e6343157c383a0c6c56fc51afcc5d4d7180306d6"
       url: "https://pub.dev"
     source: hosted
-    version: "4.5.4"
+    version: "3.3.0"
   intl:
     dependency: "direct main"
     description:
@@ -304,14 +360,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.1.8"
-  posix:
-    dependency: transitive
-    description:
-      name: posix
-      sha256: f0d7856b6ca1887cfa6d1d394056a296ae33489db914e365e2044fdada449e62
-      url: "https://pub.dev"
-    source: hosted
-    version: "6.0.2"
   shared_preferences:
     dependency: "direct main"
     description:
