@@ -13,7 +13,6 @@ const exportVehicleTicketsExcel = async (tickets) => {
 
   worksheet.columns = [
     { header: "#", key: "index", width: 8 },
-    { header: "Ref ID", key: "id", width: 12 },
     { header: "Vehicle Number", key: "vehicleNumber", width: 18 },
     { header: "Type", key: "vehicleType", width: 14 },
     { header: "Price", key: "ticketPrice", width: 12 },
@@ -34,7 +33,6 @@ const exportVehicleTicketsExcel = async (tickets) => {
   tickets.forEach((ticket, idx) => {
     worksheet.addRow({
       index: idx + 1,
-      id: ticket.id,
       vehicleNumber: ticket.vehicleNumber,
       vehicleType: ticket.vehicleType,
       ticketPrice: Number(ticket.ticketPrice).toFixed(2),
@@ -321,14 +319,12 @@ const VehicleTickets = () => {
                 <thead className="bg-teal-600 text-white">
                   <tr>
                     <th className="p-3 text-left">#</th> 
-                    <th className="p-3 text-left">Ref ID</th >
 
                     <th className="p-3 text-left">Vehicle Number</th>
                     <th className="p-3 text-left">Type</th>
                     <th className="p-3 text-left">Price</th>
                     <th className="p-3 text-left">Time</th>
                     <th className="p-3 text-left">By</th>
-                    <th className="p-3 text-left">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -336,23 +332,12 @@ const VehicleTickets = () => {
   filteredTickets.map((ticket, index) => (
     <tr key={ticket.id} className="border-b hover:bg-gray-50">
       <td className="p-3">{index + 1}</td>  {/* Chronological ID */}
-      <td className="p-3">{ticket.id}</td>  {/* Reference ID */}
       <td className="p-3">{ticket.vehicleNumber}</td>
       <td className="p-3">{ticket.vehicleType}</td>
       <td className="p-3">Rs. {ticket.ticketPrice}</td>
       <td className="p-3">{ticket.time}</td>
       <td className="p-3">{ticket.byWhom}</td>
-      <td className="p-3">
-        <ConfirmWrapper
-          message="Are you sure you want to delete this ticket?"
-          onConfirm={() => handleDeleteTicket(ticket.id)}
-        >
-          <button className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm w-full sm:w-auto justify-center">
-            <span>Delete</span>
-            <FaTrash className="text-base" />
-          </button>
-        </ConfirmWrapper>
-      </td>
+      
     </tr>
   ))
 ) : (
