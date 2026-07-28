@@ -34,8 +34,11 @@ import { printDailyPrices } from "../../utils/printDailyPrice";
 import DailyPriceCard from "./DailyPriceCard";
 import DailyPriceTable from "./DailyPriceTable";
 
-const GRID_ITEMS_PER_PAGE = 12;
+const GRID_PAGE_SIZE = 12;
+const TABLE_PAGE_SIZE = 25;
+const PDF_PAGE_SIZE = 100;
 const MAXIMUM_FALLBACK_DAYS = 60;
+const SEARCH_DELAY = 400;
 
 const PRODUCT_TYPES = [
     {
@@ -64,6 +67,15 @@ const PRODUCT_TYPES = [
         translationKey: "dailyPrices.categories.grain",
     },
 ];
+
+const EMPTY_PAGINATION = {
+    currentPage: 1,
+    pageSize: TABLE_PAGE_SIZE,
+    totalItems: 0,
+    totalPages: 0,
+    hasPreviousPage: false,
+    hasNextPage: false,
+};
 
 const getLocalDateValue = () => {
     const today = new Date();
@@ -97,12 +109,6 @@ const getPreviousDate = (dateValue, daysBefore) => {
     return `${year}-${month}-${day}`;
 };
 
-const normalizeValue = (value) => {
-    return String(value || "")
-        .trim()
-        .toLowerCase();
-};
-
 const getVisiblePageNumbers = (
     currentPage,
     totalPages
@@ -115,12 +121,10 @@ const getVisiblePageNumbers = (
     }
 
     const pages = [1];
-
     const startPage = Math.max(
         2,
         currentPage - 1
     );
-
     const endPage = Math.min(
         totalPages - 1,
         currentPage + 1
@@ -154,6 +158,8 @@ const DailyPrice = () => {
     const [searchParams, setSearchParams] =
         useSearchParams();
 
+    const dropdownRef = useRef(null);
+
     const today = getLocalDateValue();
     const querySearch =
         searchParams.get("search") || "";
@@ -161,34 +167,41 @@ const DailyPrice = () => {
     const [dailyPrices, setDailyPrices] =
         useState([]);
 
+    const [pagination, setPagination] =
+        useState(EMPTY_PAGINATION);
+
     const [loading, setLoading] = useState(true);
+    const [resolvingDate, setResolvingDate] =
+        useState(true);
+    const [downloadingPdf, setDownloadingPdf] =
+        useState(false);
     const [error, setError] = useState("");
 
-    // Date selected in the date input.
     const [selectedDate, setSelectedDate] =
         useState(today);
 
-    // Actual date of the displayed price records.
     const [
         displayedPriceDate,
         setDisplayedPriceDate,
     ] = useState(today);
 
-    // True when today's data is unavailable and
-    // an earlier date is being displayed.
     const [
         showingLatestAvailable,
         setShowingLatestAvailable,
     ] = useState(false);
 
-    // True only after the user manually chooses a date.
-    // Automatic initial loading keeps this false.
     const [
         isManualDateSelection,
         setIsManualDateSelection,
     ] = useState(false);
 
+    const [selectedDateHasNoData, setSelectedDateHasNoData] =
+        useState(false);
+
     const [searchTerm, setSearchTerm] =
+        useState(querySearch);
+
+    const [debouncedSearch, setDebouncedSearch] =
         useState(querySearch);
 
     const [selectedType, setSelectedType] =
@@ -197,15 +210,17 @@ const DailyPrice = () => {
     const [dropdownOpen, setDropdownOpen] =
         useState(false);
 
-    // Table view is shown by default.
+    // Table is the default view.
     const [viewMode, setViewMode] =
         useState("list");
 
-    // Pagination is used only in grid view.
     const [currentPage, setCurrentPage] =
         useState(1);
 
-    const dropdownRef = useRef(null);
+    const pageSize =
+        viewMode === "grid"
+            ? GRID_PAGE_SIZE
+            : TABLE_PAGE_SIZE;
 
     const formatDisplayDate = useCallback(
         (dateValue) => {
@@ -243,111 +258,326 @@ const DailyPrice = () => {
         [i18n.language]
     );
 
-    const fetchPricesForDate = useCallback(
-        async (dateValue) => {
+    /*
+     * Request one paginated page.
+     *
+     * Search and type values are sent to the backend,
+     * so the backend filters before applying pagination.
+     */
+    const requestPricePage = useCallback(
+        async ({
+            date,
+            page = 1,
+            limit = TABLE_PAGE_SIZE,
+            search = "",
+            type = "all",
+        }) => {
             const response = await axios.get(
                 `${
                     import.meta.env
                         .VITE_API_BASE_URL
-                }/api/prices/by-date/${dateValue}`
+                }/api/prices/by-date/${date}`,
+                {
+                    params: {
+                        page,
+                        limit,
+                        ...(search.trim()
+                            ? {
+                                  search:
+                                      search.trim(),
+                              }
+                            : {}),
+                        ...(type !== "all"
+                            ? { type }
+                            : {}),
+                    },
+                }
             );
 
-            return Array.isArray(response.data)
-                ? response.data
-                : [];
+            /*
+             * Supports the new paginated response.
+             * The array fallback prevents an immediate crash
+             * while the backend is being updated.
+             */
+            if (Array.isArray(response.data)) {
+                return {
+                    data: response.data,
+                    pagination: {
+                        currentPage: 1,
+                        pageSize:
+                            response.data.length,
+                        totalItems:
+                            response.data.length,
+                        totalPages:
+                            response.data.length > 0
+                                ? 1
+                                : 0,
+                        hasPreviousPage: false,
+                        hasNextPage: false,
+                    },
+                };
+            }
+
+            return {
+                data: Array.isArray(
+                    response.data?.data
+                )
+                    ? response.data.data
+                    : [],
+
+                pagination: {
+                    ...EMPTY_PAGINATION,
+                    ...(response.data
+                        ?.pagination || {}),
+                },
+            };
         },
         []
     );
 
-    const fetchPrices = useCallback(async () => {
-        setLoading(true);
-        setError("");
-        setDailyPrices([]);
-        setShowingLatestAvailable(false);
-        setDisplayedPriceDate(selectedDate);
+    /*
+     * Checks whether a date contains any price records.
+     *
+     * Search and category filters are intentionally omitted.
+     * Otherwise a valid date could be incorrectly treated as
+     * empty merely because the user's search has no matches.
+     */
+    const dateHasPrices = useCallback(
+        async (dateValue) => {
+            const result = await requestPricePage({
+                date: dateValue,
+                page: 1,
+                limit: 1,
+                search: "",
+                type: "all",
+            });
 
-        try {
-            const selectedDatePrices =
-                await fetchPricesForDate(selectedDate);
+            return (
+                result.pagination.totalItems > 0 ||
+                result.data.length > 0
+            );
+        },
+        [requestPricePage]
+    );
 
-            // If the requested date has data, display that exact date.
-            if (selectedDatePrices.length > 0) {
-                setDailyPrices(selectedDatePrices);
-                setDisplayedPriceDate(selectedDate);
-                setShowingLatestAvailable(false);
-                return;
-            }
+    /*
+     * Resolves which date should be displayed.
+     *
+     * Automatic page load:
+     * - today when today's prices exist
+     * - otherwise latest available historical date
+     *
+     * Manual date selection:
+     * - exact selected date only
+     * - no automatic fallback
+     */
+    const resolveDisplayedDate =
+        useCallback(async () => {
+            setResolvingDate(true);
+            setLoading(true);
+            setError("");
+            setDailyPrices([]);
+            setPagination(EMPTY_PAGINATION);
+            setSelectedDateHasNoData(false);
+            setShowingLatestAvailable(false);
 
-            // A manually selected date must never fall back.
-            if (isManualDateSelection) {
-                setDailyPrices([]);
-                setDisplayedPriceDate(selectedDate);
-                setShowingLatestAvailable(false);
-                return;
-            }
+            try {
+                const requestedDateHasPrices =
+                    await dateHasPrices(
+                        selectedDate
+                    );
 
-            // Automatic loading starts from today. If today has no data,
-            // search backwards until the latest available date is found.
-            for (
-                let dayOffset = 1;
-                dayOffset <= MAXIMUM_FALLBACK_DAYS;
-                dayOffset += 1
-            ) {
-                const previousDate = getPreviousDate(
-                    today,
-                    dayOffset
-                );
-
-                const previousDatePrices =
-                    await fetchPricesForDate(previousDate);
-
-                if (previousDatePrices.length > 0) {
-                    setDailyPrices(previousDatePrices);
-                    setDisplayedPriceDate(previousDate);
-                    setShowingLatestAvailable(true);
+                if (requestedDateHasPrices) {
+                    setDisplayedPriceDate(
+                        selectedDate
+                    );
+                    setShowingLatestAvailable(
+                        false
+                    );
                     return;
                 }
+
+                if (isManualDateSelection) {
+                    setDisplayedPriceDate(
+                        selectedDate
+                    );
+                    setSelectedDateHasNoData(
+                        true
+                    );
+                    return;
+                }
+
+                for (
+                    let dayOffset = 1;
+                    dayOffset <=
+                    MAXIMUM_FALLBACK_DAYS;
+                    dayOffset += 1
+                ) {
+                    const previousDate =
+                        getPreviousDate(
+                            today,
+                            dayOffset
+                        );
+
+                    const previousDateHasPrices =
+                        await dateHasPrices(
+                            previousDate
+                        );
+
+                    if (
+                        previousDateHasPrices
+                    ) {
+                        setDisplayedPriceDate(
+                            previousDate
+                        );
+                        setShowingLatestAvailable(
+                            true
+                        );
+                        return;
+                    }
+                }
+
+                setDisplayedPriceDate(today);
+                setSelectedDateHasNoData(true);
+            } catch (requestError) {
+                console.error(
+                    "Failed to resolve price date:",
+                    requestError
+                );
+
+                setError(
+                    t("dailyPrices.loadError", {
+                        defaultValue:
+                            "Unable to load daily prices.",
+                    })
+                );
+            } finally {
+                setResolvingDate(false);
             }
-
-            setDailyPrices([]);
-            setDisplayedPriceDate(today);
-            setShowingLatestAvailable(false);
-        } catch (requestError) {
-            console.error(
-                "Failed to fetch daily prices:",
-                requestError
-            );
-
-            setDailyPrices([]);
-            setShowingLatestAvailable(false);
-
-            setError(
-                t("dailyPrices.loadError", {
-                    defaultValue:
-                        "Unable to load daily prices.",
-                })
-            );
-        } finally {
-            setLoading(false);
-        }
-    }, [
-        fetchPricesForDate,
-        isManualDateSelection,
-        selectedDate,
-        t,
-        today,
-    ]);
+        }, [
+            dateHasPrices,
+            isManualDateSelection,
+            selectedDate,
+            t,
+            today,
+        ]);
 
     useEffect(() => {
-        fetchPrices();
-    }, [fetchPrices]);
+        resolveDisplayedDate();
+    }, [resolveDisplayedDate]);
 
-    // Keep the page search synchronized with the URL.
+    /*
+     * Debounce the search box so the API is not called
+     * for every individual key press.
+     */
+    useEffect(() => {
+        const timer = window.setTimeout(() => {
+            setDebouncedSearch(searchTerm);
+        }, SEARCH_DELAY);
+
+        return () => {
+            window.clearTimeout(timer);
+        };
+    }, [searchTerm]);
+
+    /*
+     * Fetch the selected backend page after the displayed
+     * date has been resolved.
+     */
+    useEffect(() => {
+        if (
+            resolvingDate ||
+            selectedDateHasNoData
+        ) {
+            setLoading(false);
+            return;
+        }
+
+        let ignoreResult = false;
+
+        const fetchPage = async () => {
+            setLoading(true);
+            setError("");
+
+            try {
+                const result =
+                    await requestPricePage({
+                        date: displayedPriceDate,
+                        page: currentPage,
+                        limit: pageSize,
+                        search: debouncedSearch,
+                        type: selectedType,
+                    });
+
+                if (ignoreResult) {
+                    return;
+                }
+
+                setDailyPrices(result.data);
+                setPagination(
+                    result.pagination
+                );
+            } catch (requestError) {
+                if (ignoreResult) {
+                    return;
+                }
+
+                console.error(
+                    "Failed to fetch daily prices:",
+                    requestError
+                );
+
+                setDailyPrices([]);
+                setPagination(
+                    EMPTY_PAGINATION
+                );
+
+                setError(
+                    t("dailyPrices.loadError", {
+                        defaultValue:
+                            "Unable to load daily prices.",
+                    })
+                );
+            } finally {
+                if (!ignoreResult) {
+                    setLoading(false);
+                }
+            }
+        };
+
+        fetchPage();
+
+        return () => {
+            ignoreResult = true;
+        };
+    }, [
+        currentPage,
+        debouncedSearch,
+        displayedPriceDate,
+        pageSize,
+        requestPricePage,
+        resolvingDate,
+        selectedDateHasNoData,
+        selectedType,
+        t,
+    ]);
+
+    // Keep search state synchronized with the URL.
     useEffect(() => {
         setSearchTerm(querySearch);
     }, [querySearch]);
 
-    // Close category dropdown after clicking outside.
+    // Reset backend page whenever query settings change.
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [
+        debouncedSearch,
+        selectedType,
+        displayedPriceDate,
+        viewMode,
+    ]);
+
+    // Close dropdown when clicking outside.
     useEffect(() => {
         const handleOutsideClick = (event) => {
             if (
@@ -381,10 +611,7 @@ const DailyPrice = () => {
                 const productName =
                     item.product?.name;
 
-                if (
-                    productName &&
-                    !translations[productName]
-                ) {
+                if (productName) {
                     translations[productName] =
                         t(productName, {
                             defaultValue:
@@ -396,138 +623,33 @@ const DailyPrice = () => {
             return translations;
         }, [dailyPrices, t]);
 
-    const filteredPrices = useMemo(() => {
-        const normalizedSearch =
-            normalizeValue(searchTerm);
-
-        return dailyPrices.filter((item) => {
-            const rawProductName =
-                item.product?.name || "";
-
-            const translatedProductName =
-                productNamesTranslations[
-                    rawProductName
-                ] || rawProductName;
-
-            const productType =
-                item.product?.type || "";
-
-            const selectedCategory =
-                PRODUCT_TYPES.find(
-                    (type) =>
-                        normalizeValue(
-                            type.value
-                        ) ===
-                        normalizeValue(
-                            productType
-                        )
-                );
-
-            const translatedProductType =
-                selectedCategory
-                    ? t(
-                          selectedCategory.translationKey,
-                          {
-                              defaultValue:
-                                  productType,
-                          }
-                      )
-                    : productType;
-
-            const matchesSearch =
-                !normalizedSearch ||
-                normalizeValue(
-                    rawProductName
-                ).includes(normalizedSearch) ||
-                normalizeValue(
-                    translatedProductName
-                ).includes(normalizedSearch) ||
-                normalizeValue(
-                    productType
-                ).includes(normalizedSearch) ||
-                normalizeValue(
-                    translatedProductType
-                ).includes(normalizedSearch);
-
-            const matchesType =
-                selectedType === "all" ||
-                normalizeValue(productType) ===
-                    normalizeValue(selectedType);
-
-            return matchesSearch && matchesType;
-        });
-    }, [
-        dailyPrices,
-        productNamesTranslations,
-        searchTerm,
-        selectedType,
-        t,
-    ]);
-
-    // Reset grid pagination after filtering or date changes.
-    useEffect(() => {
-        setCurrentPage(1);
-    }, [
-        searchTerm,
-        selectedType,
-        selectedDate,
-    ]);
-
-    const totalGridPages = Math.max(
-        1,
-        Math.ceil(
-            filteredPrices.length /
-                GRID_ITEMS_PER_PAGE
-        )
-    );
-
-    useEffect(() => {
-        if (currentPage > totalGridPages) {
-            setCurrentPage(totalGridPages);
-        }
-    }, [currentPage, totalGridPages]);
-
-    const paginatedGridPrices = useMemo(() => {
-        const startIndex =
-            (currentPage - 1) *
-            GRID_ITEMS_PER_PAGE;
-
-        return filteredPrices.slice(
-            startIndex,
-            startIndex + GRID_ITEMS_PER_PAGE
-        );
-    }, [filteredPrices, currentPage]);
-
-    const visiblePageNumbers = useMemo(
+    const translatedCurrentPage = useMemo(
         () =>
-            getVisiblePageNumbers(
-                currentPage,
-                totalGridPages
-            ),
-        [currentPage, totalGridPages]
+            dailyPrices.map((item) => ({
+                ...item,
+                product: item.product
+                    ? {
+                          ...item.product,
+                          name:
+                              productNamesTranslations[
+                                  item.product
+                                      .name
+                              ] ||
+                              item.product.name,
+                      }
+                    : null,
+            })),
+        [
+            dailyPrices,
+            productNamesTranslations,
+        ]
     );
-
-    // PDF receives all filtered rows.
-    const translatedPrices = useMemo(() => {
-        return filteredPrices.map((item) => ({
-            ...item,
-            product: {
-                ...item.product,
-                name:
-                    productNamesTranslations[
-                        item.product?.name
-                    ] || item.product?.name,
-            },
-        }));
-    }, [
-        filteredPrices,
-        productNamesTranslations,
-    ]);
 
     const selectedProductType =
         PRODUCT_TYPES.find(
             (productType) =>
-                productType.value === selectedType
+                productType.value ===
+                selectedType
         );
 
     const selectedTypeLabel =
@@ -540,13 +662,35 @@ const DailyPrice = () => {
                       ?.translationKey ||
                       "dailyPrices.categories.other",
                   {
-                      defaultValue: selectedType,
+                      defaultValue:
+                          selectedType,
                   }
               );
 
-    const typesTranslations = t("types", {
-        returnObjects: true,
-    });
+    const visiblePageNumbers = useMemo(
+        () =>
+            getVisiblePageNumbers(
+                pagination.currentPage,
+                pagination.totalPages
+            ),
+        [
+            pagination.currentPage,
+            pagination.totalPages,
+        ]
+    );
+
+    const firstItemNumber =
+        pagination.totalItems === 0
+            ? 0
+            : (pagination.currentPage - 1) *
+                  pagination.pageSize +
+              1;
+
+    const lastItemNumber = Math.min(
+        pagination.currentPage *
+            pagination.pageSize,
+        pagination.totalItems
+    );
 
     const uiTranslations = {
         title: t("ui.title"),
@@ -582,59 +726,136 @@ const DailyPrice = () => {
         }),
     };
 
+    const typesTranslations = t("types", {
+        returnObjects: true,
+    });
+
     const handleSearchChange = (event) => {
         const value = event.target.value;
 
         setSearchTerm(value);
 
-        const nextSearchParams =
+        const nextParams =
             new URLSearchParams(searchParams);
 
         if (value.trim()) {
-            nextSearchParams.set(
-                "search",
-                value
-            );
+            nextParams.set("search", value);
         } else {
-            nextSearchParams.delete("search");
+            nextParams.delete("search");
         }
 
-        setSearchParams(nextSearchParams, {
+        setSearchParams(nextParams, {
             replace: true,
         });
     };
 
     const clearSearch = () => {
         setSearchTerm("");
+        setDebouncedSearch("");
 
-        const nextSearchParams =
+        const nextParams =
             new URLSearchParams(searchParams);
 
-        nextSearchParams.delete("search");
+        nextParams.delete("search");
 
-        setSearchParams(nextSearchParams, {
+        setSearchParams(nextParams, {
             replace: true,
         });
     };
 
-    const downloadPDF = () => {
-        printDailyPrices({
-            prices: translatedPrices,
+    /*
+     * PDF export retrieves every backend page matching the
+     * current date, search and category.
+     */
+    const downloadPDF = async () => {
+        setDownloadingPdf(true);
 
-            // Use the actual date of the displayed records.
-            date: displayedPriceDate,
+        try {
+            const firstResult =
+                await requestPricePage({
+                    date: displayedPriceDate,
+                    page: 1,
+                    limit: PDF_PAGE_SIZE,
+                    search: debouncedSearch,
+                    type: selectedType,
+                });
 
-            ui: uiTranslations,
-            productNames:
-                productNamesTranslations,
-            types: typesTranslations,
-        });
+            let allPrices = [
+                ...firstResult.data,
+            ];
+
+            for (
+                let page = 2;
+                page <=
+                firstResult.pagination
+                    .totalPages;
+                page += 1
+            ) {
+                const nextResult =
+                    await requestPricePage({
+                        date: displayedPriceDate,
+                        page,
+                        limit: PDF_PAGE_SIZE,
+                        search:
+                            debouncedSearch,
+                        type: selectedType,
+                    });
+
+                allPrices = [
+                    ...allPrices,
+                    ...nextResult.data,
+                ];
+            }
+
+            const translatedProducts =
+                allPrices.map((item) => ({
+                    ...item,
+                    product: item.product
+                        ? {
+                              ...item.product,
+                              name: t(
+                                  item.product
+                                      .name,
+                                  {
+                                      defaultValue:
+                                          item
+                                              .product
+                                              .name,
+                                  }
+                              ),
+                          }
+                        : null,
+                }));
+
+            printDailyPrices({
+                prices: translatedProducts,
+                date: displayedPriceDate,
+                ui: uiTranslations,
+                productNames: {},
+                types: typesTranslations,
+            });
+        } catch (requestError) {
+            console.error(
+                "Failed to prepare PDF:",
+                requestError
+            );
+
+            setError(
+                t("dailyPrices.pdfError", {
+                    defaultValue:
+                        "Unable to prepare the PDF.",
+                })
+            );
+        } finally {
+            setDownloadingPdf(false);
+        }
     };
 
-    const changeGridPage = (page) => {
+    const changePage = (page) => {
         if (
             page < 1 ||
-            page > totalGridPages ||
+            page >
+                pagination.totalPages ||
             page === currentPage
         ) {
             return;
@@ -648,23 +869,14 @@ const DailyPrice = () => {
         });
     };
 
-    const firstGridItem =
-        filteredPrices.length === 0
-            ? 0
-            : (currentPage - 1) *
-                  GRID_ITEMS_PER_PAGE +
-              1;
+    const hasResults =
+        dailyPrices.length > 0;
 
-    const lastGridItem = Math.min(
-        currentPage * GRID_ITEMS_PER_PAGE,
-        filteredPrices.length
-    );
-
-    const selectedDateHasNoData =
+    const noFilteredResults =
         !loading &&
         !error &&
-        dailyPrices.length === 0 &&
-        selectedDate !== today;
+        !selectedDateHasNoData &&
+        pagination.totalItems === 0;
 
     return (
         <div className="flex min-h-screen flex-col bg-white">
@@ -678,16 +890,9 @@ const DailyPrice = () => {
             <main className="flex-1">
                 <div className="mx-auto w-full max-w-[1512px] px-4 py-6 sm:px-6 lg:px-8">
                     {/* Controls */}
-                    <div
-                        className="
-                            mb-6 flex flex-col gap-4
-                            lg:flex-row
-                            lg:items-center
-                            lg:justify-between
-                        "
-                    >
+                    <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                         <div className="flex flex-1 flex-wrap items-center gap-3">
-                            {/* View mode */}
+                            {/* View buttons */}
                             <div className="flex overflow-hidden rounded-md border border-gray-200 bg-white shadow-sm">
                                 <button
                                     type="button"
@@ -696,29 +901,16 @@ const DailyPrice = () => {
                                             "list"
                                         )
                                     }
-                                    aria-label={t(
-                                        "dailyPrices.tableView",
-                                        {
-                                            defaultValue:
-                                                "Table view",
-                                        }
-                                    )}
                                     aria-pressed={
                                         viewMode ===
                                         "list"
                                     }
-                                    className={`
-                                        flex h-10 w-11
-                                        items-center
-                                        justify-center
-                                        transition-colors
-                                        ${
-                                            viewMode ===
-                                            "list"
-                                                ? "bg-green-100 text-[#087b36]"
-                                                : "text-gray-500 hover:bg-gray-50"
-                                        }
-                                    `}
+                                    className={`flex h-10 w-11 items-center justify-center ${
+                                        viewMode ===
+                                        "list"
+                                            ? "bg-green-100 text-[#087b36]"
+                                            : "text-gray-500 hover:bg-gray-50"
+                                    }`}
                                 >
                                     <List size={18} />
                                 </button>
@@ -730,86 +922,87 @@ const DailyPrice = () => {
                                             "grid"
                                         )
                                     }
-                                    aria-label={t(
-                                        "dailyPrices.gridView",
-                                        {
-                                            defaultValue:
-                                                "Grid view",
-                                        }
-                                    )}
                                     aria-pressed={
                                         viewMode ===
                                         "grid"
                                     }
-                                    className={`
-                                        flex h-10 w-11
-                                        items-center
-                                        justify-center
-                                        border-l
-                                        border-gray-200
-                                        transition-colors
-                                        ${
-                                            viewMode ===
-                                            "grid"
-                                                ? "bg-green-100 text-[#087b36]"
-                                                : "text-gray-500 hover:bg-gray-50"
-                                        }
-                                    `}
+                                    className={`flex h-10 w-11 items-center justify-center border-l border-gray-200 ${
+                                        viewMode ===
+                                        "grid"
+                                            ? "bg-green-100 text-[#087b36]"
+                                            : "text-gray-500 hover:bg-gray-50"
+                                    }`}
                                 >
-                                    <Grid2X2 size={17} />
+                                    <Grid2X2
+                                        size={17}
+                                    />
                                 </button>
                             </div>
 
+                            {/* Date */}
                             <div className="flex items-center gap-3">
-  <div className="relative w-[220px]">
-    <CalendarDays
-      size={18}
-      className="absolute left-4 top-1/2 -translate-y-1/2 text-[#08772f]"
-    />
+                                <div className="relative w-[220px]">
+                                    <CalendarDays
+                                        size={18}
+                                        className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#08772f]"
+                                    />
 
-    <input
-      type="date"
-      value={displayedPriceDate}
-      max={today}
-      onChange={(event) => {
-        const chosenDate = event.target.value;
+                                    <input
+                                        type="date"
+                                        value={
+                                            displayedPriceDate
+                                        }
+                                        max={today}
+                                        onChange={(
+                                            event
+                                        ) => {
+                                            const chosenDate =
+                                                event
+                                                    .target
+                                                    .value;
 
-        setIsManualDateSelection(true);
-        setSelectedDate(chosenDate);
-        setDisplayedPriceDate(chosenDate);
-      }}
-      className="
-        w-full
-        rounded-xl
-        border border-gray-300
-        bg-white
-        py-3
-        pl-12
-        pr-4
-        shadow-sm
-        focus:border-[#08772f]
-        focus:ring-4
-        focus:ring-green-100
-        outline-none
-      "
-    />
-  </div>
+                                            setIsManualDateSelection(
+                                                true
+                                            );
+                                            setSelectedDate(
+                                                chosenDate
+                                            );
+                                            setDisplayedPriceDate(
+                                                chosenDate
+                                            );
+                                            setCurrentPage(
+                                                1
+                                            );
+                                        }}
+                                        className="w-full rounded-xl border border-gray-300 bg-white py-3 pl-12 pr-4 shadow-sm outline-none focus:border-[#08772f] focus:ring-4 focus:ring-green-100"
+                                    />
+                                </div>
 
-  {!isManualDateSelection &&
-    (showingLatestAvailable ? (
-      <span className="whitespace-nowrap rounded-full bg-amber-100 px-3 py-2 text-xs font-semibold text-amber-700">
-        {t("dailyPrices.latestAvailable", {
-          defaultValue: "Latest Available",
-        })}
-      </span>
-    ) : displayedPriceDate === today && dailyPrices.length > 0 ? (
-      <span className="whitespace-nowrap rounded-full bg-green-100 px-3 py-2 text-xs font-semibold text-green-700">
-        {t("dailyPrices.today", {
-          defaultValue: "Today",
-        })}
-      </span>
-    ) : null)}
-</div>
+                                {!isManualDateSelection &&
+                                    (showingLatestAvailable ? (
+                                        <span className="whitespace-nowrap rounded-full bg-amber-100 px-3 py-2 text-xs font-semibold text-amber-700">
+                                            {t(
+                                                "dailyPrices.latestAvailable",
+                                                {
+                                                    defaultValue:
+                                                        "Latest Available",
+                                                }
+                                            )}
+                                        </span>
+                                    ) : displayedPriceDate ===
+                                          today &&
+                                      hasResults ? (
+                                        <span className="whitespace-nowrap rounded-full bg-green-100 px-3 py-2 text-xs font-semibold text-green-700">
+                                            {t(
+                                                "dailyPrices.today",
+                                                {
+                                                    defaultValue:
+                                                        "Today",
+                                                }
+                                            )}
+                                        </span>
+                                    ) : null)}
+                            </div>
 
                             {/* Type dropdown */}
                             <div
@@ -820,31 +1013,13 @@ const DailyPrice = () => {
                                     type="button"
                                     onClick={() =>
                                         setDropdownOpen(
-                                            (current) =>
-                                                !current
+                                            (open) =>
+                                                !open
                                         )
                                     }
-                                    aria-expanded={
-                                        dropdownOpen
-                                    }
-                                    className="
-                                        flex h-10
-                                        min-w-[170px]
-                                        items-center
-                                        justify-between
-                                        gap-3 rounded-md
-                                        border border-gray-200
-                                        bg-white px-3
-                                        text-sm text-gray-700
-                                        shadow-sm outline-none
-                                        transition
-                                        hover:border-green-300
-                                        focus:border-[#087b36]
-                                        focus:ring-2
-                                        focus:ring-green-100
-                                    "
+                                    className="flex h-10 min-w-[170px] items-center justify-between gap-3 rounded-md border border-gray-200 bg-white px-3 text-sm text-gray-700 shadow-sm"
                                 >
-                                    <span className="truncate">
+                                    <span>
                                         {
                                             selectedTypeLabel
                                         }
@@ -852,56 +1027,27 @@ const DailyPrice = () => {
 
                                     <ChevronDown
                                         size={17}
-                                        className={`
-                                            shrink-0
-                                            transition-transform
-                                            duration-200
-                                            ${
-                                                dropdownOpen
-                                                    ? "rotate-180"
-                                                    : ""
-                                            }
-                                        `}
+                                        className={
+                                            dropdownOpen
+                                                ? "rotate-180"
+                                                : ""
+                                        }
                                     />
                                 </button>
 
                                 {dropdownOpen && (
-                                    <div
-                                        className="
-                                            absolute left-0
-                                            top-full z-40
-                                            mt-2 w-full
-                                            min-w-[210px]
-                                            overflow-hidden
-                                            rounded-lg
-                                            border border-gray-200
-                                            bg-white py-1
-                                            shadow-xl
-                                        "
-                                    >
+                                    <div className="absolute left-0 top-full z-40 mt-2 min-w-[210px] overflow-hidden rounded-lg border border-gray-200 bg-white py-1 shadow-xl">
                                         <button
                                             type="button"
                                             onClick={() => {
                                                 setSelectedType(
                                                     "all"
                                                 );
-
                                                 setDropdownOpen(
                                                     false
                                                 );
                                             }}
-                                            className={`
-                                                block w-full
-                                                px-4 py-2.5
-                                                text-left text-sm
-                                                transition-colors
-                                                ${
-                                                    selectedType ===
-                                                    "all"
-                                                        ? "bg-green-50 font-semibold text-[#087b36]"
-                                                        : "text-gray-700 hover:bg-gray-50"
-                                                }
-                                            `}
+                                            className="block w-full px-4 py-2.5 text-left text-sm hover:bg-green-50"
                                         >
                                             {t(
                                                 "ui.allTypes",
@@ -925,23 +1071,11 @@ const DailyPrice = () => {
                                                         setSelectedType(
                                                             productType.value
                                                         );
-
                                                         setDropdownOpen(
                                                             false
                                                         );
                                                     }}
-                                                    className={`
-                                                        block w-full
-                                                        px-4 py-2.5
-                                                        text-left text-sm
-                                                        transition-colors
-                                                        ${
-                                                            selectedType ===
-                                                            productType.value
-                                                                ? "bg-green-50 font-semibold text-[#087b36]"
-                                                                : "text-gray-700 hover:bg-gray-50"
-                                                        }
-                                                    `}
+                                                    className="block w-full px-4 py-2.5 text-left text-sm hover:bg-green-50"
                                                 >
                                                     {t(
                                                         productType.translationKey,
@@ -972,26 +1106,7 @@ const DailyPrice = () => {
                                                 "Search Products",
                                         }
                                     )}
-                                    aria-label={t(
-                                        "dailyPrices.searchPlaceholder",
-                                        {
-                                            defaultValue:
-                                                "Search Products",
-                                        }
-                                    )}
-                                    className="
-                                        h-10 w-full
-                                        rounded-md border
-                                        border-gray-200
-                                        bg-white px-4 pr-10
-                                        text-sm text-gray-700
-                                        shadow-sm outline-none
-                                        transition
-                                        placeholder:text-gray-400
-                                        focus:border-[#087b36]
-                                        focus:ring-2
-                                        focus:ring-green-100
-                                    "
+                                    className="h-10 w-full rounded-md border border-gray-200 bg-white px-4 pr-10 text-sm shadow-sm outline-none focus:border-[#087b36] focus:ring-2 focus:ring-green-100"
                                 />
 
                                 <div className="absolute right-3 top-1/2 -translate-y-1/2">
@@ -1001,25 +1116,13 @@ const DailyPrice = () => {
                                             onClick={
                                                 clearSearch
                                             }
-                                            aria-label={t(
-                                                "dailyPrices.clearSearch",
-                                                {
-                                                    defaultValue:
-                                                        "Clear search",
-                                                }
-                                            )}
-                                            className="
-                                                flex h-7 w-7
-                                                items-center
-                                                justify-center
-                                                rounded-full
-                                                text-gray-400
-                                                transition-colors
-                                                hover:bg-red-50
-                                                hover:text-red-500
-                                            "
                                         >
-                                            <X size={17} />
+                                            <X
+                                                size={
+                                                    17
+                                                }
+                                                className="text-gray-400 hover:text-red-500"
+                                            />
                                         </button>
                                     ) : (
                                         <Search
@@ -1031,157 +1134,102 @@ const DailyPrice = () => {
                             </div>
                         </div>
 
-                        {/* Download PDF */}
-                        {!loading &&
-                            filteredPrices.length >
-                                0 && (
-                                <button
-                                    type="button"
-                                    onClick={
-                                        downloadPDF
-                                    }
-                                    className="
-                                        inline-flex h-10
-                                        shrink-0 items-center
-                                        justify-center gap-2
-                                        rounded-md
-                                        bg-[#087b36]
-                                        px-5 text-sm
-                                        font-semibold
-                                        text-white shadow-sm
-                                        transition-colors
-                                        hover:bg-[#06682d]
-                                    "
-                                >
-                                    {t(
-                                        "dailyPrices.downloadPdf",
-                                        {
-                                            defaultValue:
-                                                "Download PDF",
-                                        }
-                                    )}
+                        {pagination.totalItems > 0 && (
+                            <button
+                                type="button"
+                                onClick={downloadPDF}
+                                disabled={
+                                    downloadingPdf
+                                }
+                                className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-[#087b36] px-5 text-sm font-semibold text-white hover:bg-[#06682d] disabled:opacity-60"
+                            >
+                                {downloadingPdf
+                                    ? t(
+                                          "dailyPrices.preparingPdf",
+                                          {
+                                              defaultValue:
+                                                  "Preparing PDF...",
+                                          }
+                                      )
+                                    : t(
+                                          "dailyPrices.downloadPdf",
+                                          {
+                                              defaultValue:
+                                                  "Download PDF",
+                                          }
+                                      )}
 
-                                    <Download
-                                        size={17}
-                                    />
-                                </button>
-                            )}
+                                <Download
+                                    size={17}
+                                />
+                            </button>
+                        )}
                     </div>
 
-                    {/* Displayed date notice */}
+                    {/* Date notice */}
                     {!loading &&
                         !error &&
-                        dailyPrices.length > 0 && (
+                        hasResults && (
                             <div
-                                className={`
-                                    mb-6 flex flex-col
-                                    gap-2 rounded-lg
-                                    border px-4 py-3
-                                    text-sm
-                                    sm:flex-row
-                                    sm:items-center
-                                    sm:justify-between
-                                    ${
-                                        showingLatestAvailable
-                                            ? "border-amber-200 bg-amber-50 text-amber-800"
-                                            : "border-green-200 bg-green-50 text-green-800"
-                                    }
-                                `}
+                                className={`mb-6 flex items-center gap-3 rounded-lg border px-4 py-3 text-sm ${
+                                    showingLatestAvailable
+                                        ? "border-amber-200 bg-amber-50 text-amber-800"
+                                        : "border-green-200 bg-green-50 text-green-800"
+                                }`}
                             >
-                                <div className="flex items-start gap-3">
-                                    <Clock3
-                                        size={19}
-                                        className="mt-0.5 shrink-0"
-                                    />
+                                <Clock3
+                                    size={19}
+                                    className="shrink-0"
+                                />
 
-                                    <p className="font-medium">
-                                        {showingLatestAvailable
-                                            ? t(
-                                                  "dailyPrices.latestFallbackMessage",
-                                                  {
-                                                      date: formatDisplayDate(
-                                                          displayedPriceDate
-                                                      ),
-                                                      defaultValue:
-                                                          "Today's prices have not been updated yet. Showing the latest prices from {{date}}.",
-                                                  }
-                                              )
-                                            : t(
-                                                  "dailyPrices.currentPriceMessage",
-                                                  {
-                                                      date: formatDisplayDate(
-                                                          displayedPriceDate
-                                                      ),
-                                                      defaultValue:
-                                                          "Showing prices for {{date}}.",
-                                                  }
-                                              )}
-                                    </p>
-                                </div>
-
-                                {showingLatestAvailable && (
-                                    <span
-                                        className="
-                                            shrink-0
-                                            rounded-full
-                                            bg-amber-100
-                                            px-3 py-1
-                                            text-xs
-                                            font-semibold
-                                            text-amber-800
-                                        "
-                                    >
-                                        {t(
-                                            "dailyPrices.latestAvailable",
-                                            {
-                                                defaultValue:
-                                                    "Latest available prices",
-                                            }
-                                        )}
-                                    </span>
-                                )}
+                                <p className="font-medium">
+                                    {showingLatestAvailable
+                                        ? t(
+                                              "dailyPrices.latestFallbackMessage",
+                                              {
+                                                  date: formatDisplayDate(
+                                                      displayedPriceDate
+                                                  ),
+                                                  defaultValue:
+                                                      "Today's prices have not been updated yet. Showing the latest prices from {{date}}.",
+                                              }
+                                          )
+                                        : t(
+                                              "dailyPrices.currentPriceMessage",
+                                              {
+                                                  date: formatDisplayDate(
+                                                      displayedPriceDate
+                                                  ),
+                                                  defaultValue:
+                                                      "Showing prices for {{date}}.",
+                                              }
+                                          )}
+                                </p>
                             </div>
                         )}
 
                     {/* Loading */}
                     {loading && (
-                        <div>
-                            <div className="mb-5 flex items-center justify-center gap-3 rounded-lg border border-green-100 bg-green-50 px-4 py-3 text-sm text-green-700">
-                                <span className="h-4 w-4 animate-spin rounded-full border-2 border-green-600 border-t-transparent" />
-
-                                {t(
-                                    "dailyPrices.findingLatest",
-                                    {
-                                        defaultValue:
-                                            "Checking for the latest available prices...",
-                                    }
-                                )}
-                            </div>
-
-                            <div
-                                className={
+                        <div
+                            className={
+                                viewMode === "grid"
+                                    ? "grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+                                    : "space-y-4"
+                            }
+                        >
+                            {Array.from({
+                                length:
                                     viewMode ===
                                     "grid"
-                                        ? "grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
-                                        : "space-y-4"
-                                }
-                            >
-                                {Array.from({
-                                    length:
-                                        viewMode ===
-                                        "grid"
-                                            ? 8
-                                            : 6,
-                                }).map(
-                                    (_, index) => (
-                                        <Skeleton
-                                            key={
-                                                index
-                                            }
-                                        />
-                                    )
-                                )}
-                            </div>
+                                        ? 8
+                                        : 6,
+                            }).map(
+                                (_, index) => (
+                                    <Skeleton
+                                        key={index}
+                                    />
+                                )
+                            )}
                         </div>
                     )}
 
@@ -1194,15 +1242,10 @@ const DailyPrice = () => {
 
                             <button
                                 type="button"
-                                onClick={fetchPrices}
-                                className="
-                                    mt-4 rounded-md
-                                    bg-red-600
-                                    px-5 py-2.5
-                                    font-semibold
-                                    text-white
-                                    hover:bg-red-700
-                                "
+                                onClick={
+                                    resolveDisplayedDate
+                                }
+                                className="mt-4 rounded-md bg-red-600 px-5 py-2.5 font-semibold text-white"
                             >
                                 {t(
                                     "dailyPrices.retry",
@@ -1218,8 +1261,8 @@ const DailyPrice = () => {
                     {/* No data */}
                     {!loading &&
                         !error &&
-                        filteredPrices.length ===
-                            0 && (
+                        (selectedDateHasNoData ||
+                            noFilteredResults) && (
                             <div className="py-20 text-center text-gray-500">
                                 <Lottie
                                     animationData={
@@ -1230,35 +1273,27 @@ const DailyPrice = () => {
                                 />
 
                                 <p className="mt-4 font-semibold">
-                                    {searchTerm
+                                    {selectedDateHasNoData
                                         ? t(
+                                              "dailyPrices.noPricesForSelectedDate",
+                                              {
+                                                  date: formatDisplayDate(
+                                                      displayedPriceDate
+                                                  ),
+                                                  defaultValue:
+                                                      "No price information is available for {{date}}.",
+                                              }
+                                          )
+                                        : t(
                                               "dailyPrices.noSearchResults",
                                               {
                                                   defaultValue:
-                                                      "No products match your search.",
+                                                      "No products match the selected filters.",
                                               }
-                                          )
-                                        : selectedDateHasNoData
-                                          ? t(
-                                                "dailyPrices.noPricesForSelectedDate",
-                                                {
-                                                    date: formatDisplayDate(
-                                                        selectedDate
-                                                    ),
-                                                    defaultValue:
-                                                        "No price information is available for {{date}}.",
-                                                }
-                                            )
-                                          : t(
-                                                "dailyPrices.noLatestPrices",
-                                                {
-                                                    defaultValue:
-                                                        "No recent price information is available.",
-                                                }
-                                            )}
+                                          )}
                                 </p>
 
-                                {!searchTerm &&
+                                {isManualDateSelection &&
                                     selectedDateHasNoData && (
                                         <button
                                             type="button"
@@ -1272,17 +1307,11 @@ const DailyPrice = () => {
                                                 setDisplayedPriceDate(
                                                     today
                                                 );
+                                                setCurrentPage(
+                                                    1
+                                                );
                                             }}
-                                            className="
-                                                mt-5 rounded-md
-                                                bg-[#087b36]
-                                                px-5 py-2.5
-                                                text-sm
-                                                font-semibold
-                                                text-white
-                                                transition-colors
-                                                hover:bg-[#06682d]
-                                            "
+                                            className="mt-5 rounded-md bg-[#087b36] px-5 py-2.5 text-sm font-semibold text-white"
                                         >
                                             {t(
                                                 "dailyPrices.showLatestPrices",
@@ -1296,279 +1325,166 @@ const DailyPrice = () => {
                             </div>
                         )}
 
-                    {/* Products */}
+                    {/* Results */}
                     {!loading &&
                         !error &&
-                        filteredPrices.length >
-                            0 && (
+                        hasResults && (
                             <>
                                 {viewMode ===
                                 "grid" ? (
-                                    <>
-                                        <div
-                                            className="
-                                                grid
-                                                grid-cols-1
-                                                gap-5
-                                                sm:grid-cols-2
-                                                lg:grid-cols-3
-                                                xl:grid-cols-4
-                                            "
-                                        >
-                                            {paginatedGridPrices.map(
-                                                (
-                                                    item
-                                                ) => (
-                                                    <DailyPriceCard
-                                                        key={
-                                                            item.id
-                                                        }
-                                                        item={
-                                                            item
-                                                        }
-                                                        navigate={
-                                                            navigate
-                                                        }
-                                                        t={
-                                                            t
-                                                        }
-                                                    />
-                                                )
-                                            )}
-                                        </div>
-
-                                        {/* Grid pagination */}
-                                        <div className="mt-8 flex flex-col items-center justify-between gap-4 border-t border-gray-100 pt-6 sm:flex-row">
-                                            <p className="text-sm text-gray-500">
-                                                {t(
-                                                    "pagination.showing",
-                                                    {
-                                                        defaultValue:
-                                                            "Showing",
+                                    <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                                        {dailyPrices.map(
+                                            (item) => (
+                                                <DailyPriceCard
+                                                    key={
+                                                        item.id
                                                     }
-                                                )}{" "}
-                                                <span className="font-semibold text-gray-700">
-                                                    {
-                                                        firstGridItem
+                                                    item={
+                                                        item
                                                     }
-                                                </span>{" "}
-                                                {t(
-                                                    "pagination.to",
-                                                    {
-                                                        defaultValue:
-                                                            "to",
+                                                    navigate={
+                                                        navigate
                                                     }
-                                                )}{" "}
-                                                <span className="font-semibold text-gray-700">
-                                                    {
-                                                        lastGridItem
+                                                    t={
+                                                        t
                                                     }
-                                                </span>{" "}
-                                                {t(
-                                                    "pagination.of",
-                                                    {
-                                                        defaultValue:
-                                                            "of",
-                                                    }
-                                                )}{" "}
-                                                <span className="font-semibold text-gray-700">
-                                                    {
-                                                        filteredPrices.length
-                                                    }
-                                                </span>{" "}
-                                                {t(
-                                                    "pagination.results",
-                                                    {
-                                                        defaultValue:
-                                                            "results",
-                                                    }
-                                                )}
-                                            </p>
-
-                                            {totalGridPages >
-                                                1 && (
-                                                <nav
-                                                    className="flex flex-wrap items-center justify-center gap-2"
-                                                    aria-label={t(
-                                                        "pagination.label",
-                                                        {
-                                                            defaultValue:
-                                                                "Pagination",
-                                                        }
-                                                    )}
-                                                >
-                                                    <button
-                                                        type="button"
-                                                        onClick={() =>
-                                                            changeGridPage(
-                                                                currentPage -
-                                                                    1
-                                                            )
-                                                        }
-                                                        disabled={
-                                                            currentPage ===
-                                                            1
-                                                        }
-                                                        className="
-                                                            inline-flex
-                                                            h-10
-                                                            items-center
-                                                            gap-1
-                                                            rounded-md
-                                                            border
-                                                            border-gray-300
-                                                            px-3
-                                                            text-sm
-                                                            font-semibold
-                                                            text-gray-600
-                                                            transition-colors
-                                                            hover:border-green-300
-                                                            hover:bg-green-50
-                                                            hover:text-[#087b36]
-                                                            disabled:cursor-not-allowed
-                                                            disabled:opacity-40
-                                                        "
-                                                    >
-                                                        <ChevronLeft
-                                                            size={
-                                                                17
-                                                            }
-                                                        />
-
-                                                        <span className="hidden sm:inline">
-                                                            {t(
-                                                                "pagination.previous",
-                                                                {
-                                                                    defaultValue:
-                                                                        "Previous",
-                                                                }
-                                                            )}
-                                                        </span>
-                                                    </button>
-
-                                                    {visiblePageNumbers.map(
-                                                        (
-                                                            page
-                                                        ) => {
-                                                            if (
-                                                                typeof page !==
-                                                                "number"
-                                                            ) {
-                                                                return (
-                                                                    <span
-                                                                        key={
-                                                                            page
-                                                                        }
-                                                                        className="flex h-10 min-w-8 items-center justify-center text-gray-400"
-                                                                    >
-                                                                        …
-                                                                    </span>
-                                                                );
-                                                            }
-
-                                                            const active =
-                                                                page ===
-                                                                currentPage;
-
-                                                            return (
-                                                                <button
-                                                                    key={
-                                                                        page
-                                                                    }
-                                                                    type="button"
-                                                                    onClick={() =>
-                                                                        changeGridPage(
-                                                                            page
-                                                                        )
-                                                                    }
-                                                                    aria-current={
-                                                                        active
-                                                                            ? "page"
-                                                                            : undefined
-                                                                    }
-                                                                    className={`
-                                                                        flex h-10 min-w-10
-                                                                        items-center
-                                                                        justify-center
-                                                                        rounded-md
-                                                                        px-3 text-sm
-                                                                        font-semibold
-                                                                        transition-colors
-                                                                        ${
-                                                                            active
-                                                                                ? "bg-[#087b36] text-white shadow-sm"
-                                                                                : "border border-gray-300 text-gray-600 hover:border-green-300 hover:bg-green-50 hover:text-[#087b36]"
-                                                                        }
-                                                                    `}
-                                                                >
-                                                                    {
-                                                                        page
-                                                                    }
-                                                                </button>
-                                                            );
-                                                        }
-                                                    )}
-
-                                                    <button
-                                                        type="button"
-                                                        onClick={() =>
-                                                            changeGridPage(
-                                                                currentPage +
-                                                                    1
-                                                            )
-                                                        }
-                                                        disabled={
-                                                            currentPage ===
-                                                            totalGridPages
-                                                        }
-                                                        className="
-                                                            inline-flex
-                                                            h-10
-                                                            items-center
-                                                            gap-1
-                                                            rounded-md
-                                                            border
-                                                            border-gray-300
-                                                            px-3
-                                                            text-sm
-                                                            font-semibold
-                                                            text-gray-600
-                                                            transition-colors
-                                                            hover:border-green-300
-                                                            hover:bg-green-50
-                                                            hover:text-[#087b36]
-                                                            disabled:cursor-not-allowed
-                                                            disabled:opacity-40
-                                                        "
-                                                    >
-                                                        <span className="hidden sm:inline">
-                                                            {t(
-                                                                "pagination.next",
-                                                                {
-                                                                    defaultValue:
-                                                                        "Next",
-                                                                }
-                                                            )}
-                                                        </span>
-
-                                                        <ChevronRight
-                                                            size={
-                                                                17
-                                                            }
-                                                        />
-                                                    </button>
-                                                </nav>
-                                            )}
-                                        </div>
-                                    </>
+                                                />
+                                            )
+                                        )}
+                                    </div>
                                 ) : (
-                                    // Table receives every filtered record.
                                     <div className="overflow-hidden rounded-md bg-white">
                                         <DailyPriceTable
                                             items={
-                                                filteredPrices
+                                                translatedCurrentPage
                                             }
                                         />
+                                    </div>
+                                )}
+
+                                {/* Backend pagination for both views */}
+                                {pagination.totalPages >
+                                    1 && (
+                                    <div className="mt-8 flex flex-col items-center justify-between gap-4 border-t border-gray-100 pt-6 sm:flex-row">
+                                        <p className="text-sm text-gray-500">
+                                            {t(
+                                                "pagination.showing",
+                                                {
+                                                    defaultValue:
+                                                        "Showing",
+                                                }
+                                            )}{" "}
+                                            <strong>
+                                                {
+                                                    firstItemNumber
+                                                }
+                                            </strong>{" "}
+                                            {t(
+                                                "pagination.to",
+                                                {
+                                                    defaultValue:
+                                                        "to",
+                                                }
+                                            )}{" "}
+                                            <strong>
+                                                {
+                                                    lastItemNumber
+                                                }
+                                            </strong>{" "}
+                                            {t(
+                                                "pagination.of",
+                                                {
+                                                    defaultValue:
+                                                        "of",
+                                                }
+                                            )}{" "}
+                                            <strong>
+                                                {
+                                                    pagination.totalItems
+                                                }
+                                            </strong>
+                                        </p>
+
+                                        <nav className="flex flex-wrap items-center justify-center gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    changePage(
+                                                        currentPage -
+                                                            1
+                                                    )
+                                                }
+                                                disabled={
+                                                    !pagination.hasPreviousPage
+                                                }
+                                                className="flex h-10 items-center rounded-md border border-gray-300 px-3 disabled:opacity-40"
+                                            >
+                                                <ChevronLeft
+                                                    size={
+                                                        17
+                                                    }
+                                                />
+                                            </button>
+
+                                            {visiblePageNumbers.map(
+                                                (
+                                                    page
+                                                ) =>
+                                                    typeof page ===
+                                                    "number" ? (
+                                                        <button
+                                                            key={
+                                                                page
+                                                            }
+                                                            type="button"
+                                                            onClick={() =>
+                                                                changePage(
+                                                                    page
+                                                                )
+                                                            }
+                                                            className={`h-10 min-w-10 rounded-md px-3 text-sm font-semibold ${
+                                                                page ===
+                                                                pagination.currentPage
+                                                                    ? "bg-[#087b36] text-white"
+                                                                    : "border border-gray-300 text-gray-600 hover:bg-green-50"
+                                                            }`}
+                                                        >
+                                                            {
+                                                                page
+                                                            }
+                                                        </button>
+                                                    ) : (
+                                                        <span
+                                                            key={
+                                                                page
+                                                            }
+                                                            className="px-1 text-gray-400"
+                                                        >
+                                                            …
+                                                        </span>
+                                                    )
+                                            )}
+
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    changePage(
+                                                        currentPage +
+                                                            1
+                                                    )
+                                                }
+                                                disabled={
+                                                    !pagination.hasNextPage
+                                                }
+                                                className="flex h-10 items-center rounded-md border border-gray-300 px-3 disabled:opacity-40"
+                                            >
+                                                <ChevronRight
+                                                    size={
+                                                        17
+                                                    }
+                                                />
+                                            </button>
+                                        </nav>
                                     </div>
                                 )}
                             </>
