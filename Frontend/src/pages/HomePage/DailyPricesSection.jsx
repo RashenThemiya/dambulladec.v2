@@ -46,38 +46,76 @@ const DailyPricesPreview = () => {
     };
 
     const requestPricesForDate = useCallback(
-        async (dateValue) => {
-            const response = await axios.get(
-                `${API_BASE_URL}/api/prices/by-date/${dateValue}`,
-                {
-                    params: {
-                        page: 1,
-                        limit: PREVIEW_LIMIT,
-                    },
-                }
-            );
-
-            if (
-                !response.data ||
-                !Array.isArray(response.data.data)
-            ) {
-                throw new Error(
-                    "Unexpected daily-price API response."
-                );
+    async (dateValue) => {
+        const response = await axios.get(
+            `${API_BASE_URL}/api/prices/by-date/${dateValue}`,
+            {
+                params: {
+                    page: 1,
+                    limit: PREVIEW_LIMIT,
+                },
             }
+        );
 
+        console.log(
+            "DAILY PRICE API RESPONSE:",
+            response.data
+        );
+
+        // Correct paginated response:
+        // { data: [...], pagination: {...} }
+        if (Array.isArray(response.data?.data)) {
             return {
                 data: response.data.data,
-
                 pagination:
                     response.data.pagination || {
                         totalItems:
                             response.data.data.length,
                     },
             };
-        },
-        [API_BASE_URL]
-    );
+        }
+
+        // Old response:
+        // [...]
+        if (Array.isArray(response.data)) {
+            return {
+                data: response.data.slice(
+                    0,
+                    PREVIEW_LIMIT
+                ),
+                pagination: {
+                    totalItems:
+                        response.data.length,
+                },
+            };
+        }
+
+        // Current response:
+        // { id, date, min_price, max_price, product }
+        if (
+            response.data &&
+            response.data.id &&
+            response.data.product
+        ) {
+            return {
+                data: [response.data],
+                pagination: {
+                    currentPage: 1,
+                    pageSize: 1,
+                    totalItems: 1,
+                    totalPages: 1,
+                    hasPreviousPage: false,
+                    hasNextPage: false,
+                },
+            };
+        }
+
+        throw new Error(
+            "Unexpected daily-price API response."
+        );
+    },
+    [API_BASE_URL]
+);
 
     const fetchLatestPrices =
         useCallback(async () => {
