@@ -104,33 +104,78 @@ router.get('/product/:productId/chart', async (req, res) => {
 });
 
 // 4. Get all product price ranges on a specific day
-router.get('/by-date/:date', async (req, res) => {
+router.get("/by-date/:date", async (req, res) => {
   const { date } = req.params;
 
+  const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+  const limit = Math.min(
+    Math.max(parseInt(req.query.limit, 10) || 20, 1),
+    100
+  );
+
+  const offset = (page - 1) * limit;
+
   try {
-    const prices = await Price.findAll({
+    const { count, rows } = await Price.findAndCountAll({
       where: { date },
-      include: [{ model: Product, attributes: ['id', 'name', 'type', 'image'] }],
+
+      include: [
+        {
+          model: Product,
+          attributes: ["id", "name", "type", "image"],
+          required: true,
+        },
+      ],
+
+      order: [
+        [{ model: Product }, "name", "ASC"],
+      ],
+
+      limit,
+      offset,
+
+      distinct: true,
     });
 
-    const formatted = prices.map(p => ({
-      id: p.id,
-      date: p.date,
-      min_price: p.min_price,
-      max_price: p.max_price,
-      product: {
-        id: p.Product.id,
-        name: p.Product.name,
-        type: p.Product.type,
-        image: p.Product.image
-          ? `data:image/jpeg;base64,${p.Product.image.toString('base64')}`
-          : null
-      }
+    const data = rows.map((price) => ({
+      id: price.id,
+      date: price.date,
+      min_price: price.min_price,
+      max_price: price.max_price,
+
+      product: price.Product
+        ? {
+            id: price.Product.id,
+            name: price.Product.name,
+            type: price.Product.type,
+
+            image: price.Product.image
+              ? `data:image/jpeg;base64,${price.Product.image.toString(
+                  "base64"
+                )}`
+              : null,
+          }
+        : null,
     }));
 
-    res.status(200).json(formatted);
+    const totalPages = Math.ceil(count / limit);
+
+    res.status(200).json({
+      data,
+      pagination: {
+        currentPage: page,
+        pageSize: limit,
+        totalItems: count,
+        totalPages,
+        hasPreviousPage: page > 1,
+        hasNextPage: page < totalPages,
+      },
+    });
   } catch (err) {
-    res.status(500).json({ message: 'Error fetching prices for date', error: err.message });
+    res.status(500).json({
+      message: "Error fetching prices for date",
+      error: err.message,
+    });
   }
 });
 

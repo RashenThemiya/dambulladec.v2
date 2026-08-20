@@ -1,4 +1,15 @@
+
+
 {
+
+  "navbar": {
+  "home": "Home",
+  "dailyPrice": "Daily Price",
+  "contact": "Contact",
+  "hotline": "DDEC Hotline Service:",
+  "language": "Language"
+},
+
   "Cabbage": "Cabbage",
   "Cauliflower": "Cauliflower",
   "Red Cabbage": "Red Cabbage",
@@ -83,42 +94,99 @@
   "Red Onion (Imported)": "Red Onion (Imported)",
   "Red Onion (Lanka)": "Red Onion (Lanka)",
   "Big Onion (Imported)": "Big Onion (Imported)",
+
   "home": {
-    "welcomeMessage": "Welcome to the Dambulla Dedicated Economic Center",
-    "description": "From the 1998 budget proposals of the Government of Sri Lanka, as a first step towards establishing regionally specific dedicated economic centers in the country, approximately Rs. 115 million was spent. This special economic center, consisting of 144 stalls, was opened on 1999.04.01 for the benefit and advantage of wholesale vegetable traders and ultimately vegetable producers."
-  },
+  "welcomePrefix": "Welcome to the",
+  "titlePrimary": "Dambulla Dedicated",
+  "titleSecondary": "Economic Center",
+  "description": "From the 1998 budget proposals of the Government of Sri Lanka, as a first step towards establishing regionally specific dedicated economic centers in the country, approximately Rs. 115 million was spent. This special economic center, consisting of 144 stalls, was opened on 1999.04.01 for the benefit and advantage of wholesale vegetable traders and ultimately vegetable producers."
+},
+"priceChart": {
+  "loading": "Loading price chart...",
+  "loadError": "Failed to load price history.",
+  "missingProduct": "Product ID is missing.",
+  "noData": "No price data available.",
+  "selectTimeRange": "Select Time Range",
+  "all": "All",
+  "hideMinPrice": "Hide Min Price",
+  "showMinPrice": "Show Min Price",
+  "hideMaxPrice": "Hide Max Price",
+  "showMaxPrice": "Show Max Price",
+  "trendTitle": "Price Trend",
+  "resetZoom": "Reset Zoom",
+  "priceAxis": "Price (Rs)",
+  "minPrice": "Min Price (Rs)",
+  "maxPrice": "Max Price (Rs)",
+  "noRangeData": "No data is available for the selected time range.",
+  "enableDataset": "Enable at least one price line to display the chart."
+},
   "contact": {
+    "pageTitle": "Contact Us | Dambulla Dedicated Economic Center",
+"metaDescription": "Contact the Dambulla Dedicated Economic Center for general inquiries, location details, phone numbers and working hours.",
+"headingFirst": "Contact",
+"headingSecond": "Us",
+"description": "We're here to help you connect with the Dambulla Dedicated Economic Center. Whether you have inquiries, feedback, or need market information, our team is ready to assist.",
     "title": "Contact Us",
-    "description": "If you have any questions or suggestions, please feel free to reach out to us. We are here to assist you.",
-    "breadcrumb": "Home > Contact Us",
-    "talkToUs": "Talk to us",
-    "subText": "Tell us your suggestions and allegations",
-    "address": "Address",
-    "email": "Email",
-    "phone": "Phone ",
-    "mapTitle": "Location Map"
+    "locationTitle": "Our Location",
+  "location": "Kandy - Jaffna Highway, Dambulla, Sri Lanka",
+  "phone": "Phone",
+  "email": "Email",
+  "workingHours": "Working Hours",
+  "openingTime": "4.30 A.M onwards",
+  "mapTitle": "Dambulla Dedicated Economic Center Map"
+    
   },
-  "weather": {
-    "title": "Dambulla Weather",
-    "loading": "Loading...",
-    "error": "Failed to fetch weather data. Please try again later."
-  },
+  
+  "news": {
+  "title": "Economic Center News",
+  "subtitle": "Stay informed with the latest announcements and events.",
+  "loading": "Loading...",
+  "loadFailed": "Failed to load notifications.",
+  "retry": "Retry",
+  "noPublications": "No publications are available in this category.",
+  "view": "View",
+  "download": "Download",
+  "cardImageAlt": "Publication image",
+  "previous": "Previous publications",
+  "next": "Next publications",
+  "goToSlide": "Go to slide {{number}}",
+  "categories": {
+    "all": "ALL",
+    "notice": "NOTICE",
+    "announcement": "ANNOUNCEMENTS",
+    "news": "NEWS",
+    "event": "EVENTS"
+  }
+},
   "footer": {
-    "mainCenters": "Main Centers",
-    "regionalCenters": "Regional Centers",
-    "thambuththegama": "Thambuththegama",
-    "dambulla": "Dambulla",
-    "nuwaraEliya": "Nuwara Eliya Dedicated Economic Center",
-    "narahenpita": "Narahenpita Dedicated Economic Center",
-    "welisara": "Welisara Dedicated Economic Center",
-    "veyangoda": "Veyangoda Dedicated Economic Center",
-    "ratmalana": "Ratmalana Dedicated Economic Center",
-    "meegoda": "Meegoda Dedicated Economic Center",
-    "kandeketiya": "Kandehandiya Dedicated Economic Center",
-    "kepptipola": "Keppetipola Economic Center",
-    "center": "Dedicated Economic Center",
-    "city": "Dambulla"
-  },
+  "mainCenters": "Main Centers",
+  "regionalCenters": "Regional Centers",
+  "thambuththegama": "Thambuththegama",
+  "dambulla": "Dambulla",
+  "nuwaraEliya": "Nuwara Eliya Dedicated Economic Center",
+  "narahenpita": "Narahenpita Dedicated Economic Center",
+  "welisara": "Welisara Dedicated Economic Center",
+  "veyangoda": "Veyangoda Dedicated Economic Center",
+  "ratmalana": "Ratmalana Dedicated Economic Center",
+  "meegoda": "Meegoda Dedicated Economic Center",
+  "kandeketiya": "Kandehandiya Dedicated Economic Center",
+  "kepptipola": "Keppetipola Economic Center",
+  "center": "Dedicated Economic Center",
+  "city": "Dambulla",
+
+  "brandTitleLine1": "Dambulla Dedicated",
+  "brandTitleLine2": "Economic Center",
+  "description": "Empowering farmers with fair prices, sustainable practices, and a transparent market for a better tomorrow.",
+  "officeDetails": "Office Details",
+  "managerName": "Cristy Wijerathna",
+  "managerRole": "Manager",
+  "managementOffice": "Management Office",
+  "generalInquiries": "General Inquiries",
+  "phone": "Phone",
+  "email": "Email",
+  "copyrightName": "Dambulla Economic Center",
+  "allRightsReserved": "All Rights Reserved"
+},
   "ServiceSection": {
     "sectionTitle": "Our Services",
     "sectionDescription": "Our services at the Dambulla Special Economic Center work towards enhancing the economic growth and agricultural sustainability of farmers. Our primary objectives are to provide better prices for farmers, promote collective growth for agricultural production, and deliver high-quality products. Additionally, we fully implement new technological methods, start small industries, and establish price determination systems. Through our services, we aim to ensure the safety of farmers and provide high-quality products to consumers.",
@@ -145,6 +213,23 @@
       }
     ]
   },
+
+  "newsWidget": {
+  "title": "Latest Updates",
+  "subtitle": "Recent notices, announcements, news and events.",
+  "loadError": "Unable to load recent news.",
+  "noNews": "No recent news.",
+  "noImage": "No image",
+  "imageAlt": "News image",
+  "close": "Close news details",
+  "readMore": "Read more",
+  "showLess": "Show less"
+},
+
+  "visionMission": {
+  "title": "Our Vision & Our Mission",
+  "subtitle": "Guided by purpose, driven by impact"
+},
   "vision": {
     "title": "Vision",
     "text": "Progress of the nation through peace of mind for the farming community."
@@ -158,9 +243,14 @@
     "5": "To enhance the income of wholesale traders through a well-planned and systematic wholesale business, supporting the development of the Dambulla region.",
     "6": "To provide direct employment to over 5,000 people and indirect employment to more than 15,000, making Dambulla a key human resource hub for Sri Lanka."
   },
+  "callCenter": {
+  "label": "Call Center",
+  "callNow": "Call Dambulla Economic Center"
+},
   "openTime": "🕔 Open - 5AM to 12MN",
   "featureCards": {
-    "openTime": "Open Daily from 4.30 a.m. onwards",
+    "openDaily": "Open Daily From",
+  "openTime": "4.30 A.M Onwards",
     "tradersValue": "10,000+",
     "tradersLabel": "Traders & Farmers Visit Daily",
     "vehiclesValue": "2,000+",
@@ -178,12 +268,57 @@
     "para4": "The Dambulla Dedicated Economic Center functions as a day-and-night market, which is why Dambulla is popularly known as a \"city that never sleeps.\" Currently, market activities take place from 5:00 AM to 12:00 midnight."
   },
   "dailyPrices": {
-    "title": "Daily Product Prices",
-    "searchPlaceholder": "🔍︎ Search Products",
-    "downloadPdf": "Download PDF",
-    "noDatal1": "Daily price information is being updated.",
-    "noDatal2": "The information will be available once the update is complete."
-  },
+    "today": "Today",
+    "latestFallbackMessage": "Today's prices have not been updated yet. Showing the latest prices from {{date}}.",
+"currentPriceMessage": "Showing prices for {{date}}.",
+"latestAvailable": "Latest available prices",
+"findingLatest": "Checking for the latest available prices...",
+"noPricesForSelectedDate": "No price information is available for {{date}}.",
+"noLatestPrices": "No recent price information is available.",
+"showLatestPrices": "Show Latest Prices",
+    "clearSearch": "Clear search",
+"noSearchResults": "No products match your search.",
+  "updated": "Updated:",
+  "title": "Daily Product Prices",
+  "searchPlaceholder": "🔍︎ Search Products",
+  "downloadPdf": "Download PDF",
+  "noImage": "No Image",
+  "history": "View Price History",
+  "noDatal1": "Daily price information is being updated.",
+  "noDatal2": "The information will be available once the update is complete.",
+  "previewTitle": "Daily Prices",
+  "category": "Category",
+  "name": "Name",
+  "priceRange": "Price Range (LKR)",
+  "date": "Date",
+  "action": "Action",
+  "viewHistory": "View Price History",
+  "seeAllPrices": "See All Prices ...",
+  "latestDate": "Latest prices:",
+  "loading": "Loading daily prices...",
+  "retry": "Retry",
+  "loadError": "Unable to load daily prices.",
+
+  "categories": {
+    "fruit": "Fruit",
+    "vegetable": "Vegetable",
+    "rice": "Rice",
+    "potatoes": "Potatoes",
+    "leafVegetable": "Leaf Vegetable",
+    "grain": "Grain",
+    "other": "Other"
+  }
+},
+"pagination": {
+  "previous": "Previous",
+  "next": "Next",
+  "showing": "Showing",
+  "to": "to",
+  "of": "of",
+  "results": "results"
+},
+"tableView": "Table view",
+"gridView": "Grid view",
   "ui": {
     "title": "Daily Price Information",
     "center": "Dedicated Economic Center, Dambulla",
@@ -215,12 +350,18 @@
 },
 
   "priceInsights": {
-    "title": "Market Price Overview",
-    "range": "prices ranged between",
-    "latest": "Latest data recorded on",
-    "trends": "Use this chart to explore seasonal fluctuations, upward/downward trends, or price spikes.",
-    "zoom": "Zoom and scroll to investigate specific time periods for better insights."
-  }
+  "product": "Product",
+  "overviewTitle": "Market Price Overview",
+  "overviewDescription": "Monitor daily minimum and maximum market prices to identify trends, compare historical data, and make informed trading decisions.",
+  "priceRange": "Price Range",
+  "minMaxPrice": "MIN - MAX Price",
+  "latestUpdate": "Latest Update",
+  "mostRecentData": "Most Recent Data",
+  "trendAnalysis": "Trend Analysis",
+  "marketMovements": "Market Movements",
+  "upward": "Upward",
+  "downward": "Downward"
+}
 
 
 }
